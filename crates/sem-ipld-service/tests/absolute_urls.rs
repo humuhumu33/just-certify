@@ -176,7 +176,9 @@ async fn certify_json(state: ServiceState, json: &'static str) -> Value {
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -191,9 +193,18 @@ async fn uor_address_differs_across_payloads() {
     let ub = b["uor_address"].as_str().unwrap();
     let uc = c["uor_address"].as_str().unwrap();
 
-    assert_ne!(ua, ub, "different payloads must produce different uor_address");
-    assert_ne!(ua, uc, "different payloads must produce different uor_address");
-    assert_ne!(ub, uc, "different payloads must produce different uor_address");
+    assert_ne!(
+        ua, ub,
+        "different payloads must produce different uor_address"
+    );
+    assert_ne!(
+        ua, uc,
+        "different payloads must produce different uor_address"
+    );
+    assert_ne!(
+        ub, uc,
+        "different payloads must produce different uor_address"
+    );
 
     // @id must also differ (pre-existing guarantee)
     assert_ne!(a["@id"], b["@id"]);
@@ -203,13 +214,21 @@ async fn uor_address_differs_across_payloads() {
 /// TEST 2 fix: uor_address must change on any byte-level change.
 #[tokio::test]
 async fn uor_address_changes_on_any_mutation() {
-    let base  = certify_json(fresh_state(), r#"{"source":"def f(): pass"}"#).await;
+    let base = certify_json(fresh_state(), r#"{"source":"def f(): pass"}"#).await;
     let newline = certify_json(fresh_state(), r#"{"source":"def f(): pass\n"}"#).await;
     let comment = certify_json(fresh_state(), r#"{"source":"def f(): pass # hi"}"#).await;
 
     let u0 = base["uor_address"].as_str().unwrap();
-    assert_ne!(u0, newline["uor_address"].as_str().unwrap(), "newline must change uor_address");
-    assert_ne!(u0, comment["uor_address"].as_str().unwrap(), "comment must change uor_address");
+    assert_ne!(
+        u0,
+        newline["uor_address"].as_str().unwrap(),
+        "newline must change uor_address"
+    );
+    assert_ne!(
+        u0,
+        comment["uor_address"].as_str().unwrap(),
+        "comment must change uor_address"
+    );
 }
 
 /// TEST 4 fix: uor_address must be identical for identical payloads (idempotency).
@@ -218,10 +237,16 @@ async fn uor_address_is_idempotent() {
     let state = fresh_state();
     let a = certify_json(state.clone(), r#"{"payload":"same","n":42}"#).await;
     let b = certify_json(state.clone(), r#"{"payload":"same","n":42}"#).await;
-    let c = certify_json(state,         r#"{"payload":"same","n":42}"#).await;
+    let c = certify_json(state, r#"{"payload":"same","n":42}"#).await;
 
-    assert_eq!(a["uor_address"], b["uor_address"], "idempotency: call A == call B");
-    assert_eq!(b["uor_address"], c["uor_address"], "idempotency: call B == call C");
+    assert_eq!(
+        a["uor_address"], b["uor_address"],
+        "idempotency: call A == call B"
+    );
+    assert_eq!(
+        b["uor_address"], c["uor_address"],
+        "idempotency: call B == call C"
+    );
     assert_eq!(a["@id"], b["@id"]);
     assert_eq!(b["@id"], c["@id"]);
 }

@@ -11,7 +11,7 @@
 # `/build/crates/<crate>/Cargo.toml` — resolves to `/UOR-Framework/foundation`.
 
 # ─── Build stage ────────────────────────────────────────────────────────────
-FROM rust:1.81-bookworm AS build
+FROM rust:1.86-bookworm AS build
 
 # Clone UOR-Framework first so the path dependency resolves during
 # `cargo build`. The clone is pinned to the main branch — if you want

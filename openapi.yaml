@@ -1,34 +1,46 @@
 openapi: 3.1.0
 info:
-  title: sem-ipld certify service
-  summary: Content-addressed storage with a UOR admission certificate. One verb in, two CIDs out.
+  title: UOR Certify — Decentralized Object Identity API
+  summary: Assign a permanent, verifiable identity to any digital object. One POST in, a tamper-evident JSON-LD identity bundle out.
   description: |
-    A minimal HTTP front-end to the UOR Foundation Rust kernel + the sem-ipld
-    IPLD adapter. Two verbs total.
+    ## What this service does
 
-    **Scope.** This service is the Babel Fish for **content identity** and
-    **admission proof**. It gives any system a shared way to name and
-    re-verify objects without changing wire formats. Semantic translation
-    — canonicalizing different serializations of the same meaning to the
-    same CID — is an *adjacent* layer (URDNA2015 for RDF, JCS for JSON)
-    that composes on top. This service does **not** deliver semantic
-    equivalence alone: two different JSON-LD serializations of the same
-    RDF graph produce two different CIDs here, by design.
+    POST any digital object (JSON, bytes, or DAG-CBOR) and receive a
+    **tamper-evident, decentralized, permanently addressable identity bundle**
+    in return. The response is a valid JSON-LD 1.1 document interoperable
+    with W3C Verifiable Credentials 2.0, W3C Data Integrity 1.0, IPFS, and
+    any OpenAI-compatible AI agent.
 
-    **What is delivered:** content-addressed CIDv1 identifiers, a UOR
-    admission certificate (kernel-minted `Grounded<T>` metadata), IPIP-402
-    trustless gateway for raw block fetch.
+    **The core story (one line):**
+    UOR admitted the object → assigned `uor_address` (ontological name) →
+    mapped it to `@id` (content-addressed `ipfs://` URI) → minted a
+    verifiable `certificate`. Every step is cryptographically reproducible.
 
-    **What is NOT delivered (v0.1.x):** VC 2.0 signing, DID resolution,
-    semantic canonicalization (URDNA2015 / JCS / dag-json ↔ dag-cbor
-    normalization), durable cross-restart storage, rate limiting, auth.
-    These are scoped for future releases or belong in companion layers.
+    ## For AI agents
 
-    Every response is still content-addressed, but the v0.1.x `Cache-Control`
-    header is deliberately `public, max-age=300, must-revalidate` (not
-    `immutable`) because the backing store is in-memory and evaporates on
-    restart. `immutable` returns when a durable store lands in v0.2.0.
-  version: "0.4.0"
+    This service is registered as an OpenAI-compatible tool. Agents can
+    discover it at `/.well-known/ai-plugin.json` and load ready-to-use
+    function definitions from `GET /v1/openai-tools`. Compatible with:
+    LangChain, CrewAI, AutoGPT, AWS Bedrock Agents, and any framework
+    that supports the OpenAI function-calling standard.
+
+    **Use this tool when you need to:**
+    - Create a permanent, tamper-evident identifier for any data or AI output
+    - Store an object so it is verifiable and retrievable without a central server
+    - Anchor AI-generated content to a cryptographic proof of provenance
+    - Build verifiable provenance chains across multi-agent pipelines
+
+    ## Standards implemented
+
+    | Standard | Role |
+    |---|---|
+    | JSON-LD 1.1 | Response is a valid JSON-LD node (`@context`, `@id`, `@type`) |
+    | W3C Data Integrity 1.0 | `digestMultibase` field; certificate block carries a DI proof |
+    | W3C VC 2.0 | Certificate block projects to a Verifiable Credential via `?as=vc` |
+    | IPFS IPIP-402 | Trustless block gateway; blocks are content-addressed and immutable |
+    | OpenAI tool calling | `GET /v1/openai-tools` returns function-calling schema |
+    | GPT Actions | `GET /.well-known/ai-plugin.json` registers as a ChatGPT/GPT Action |
+  version: "0.5.0"
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -43,27 +55,22 @@ paths:
   /v1/certify:
     post:
       operationId: certify
-      summary: Certify a payload through the UOR admission pipeline.
+      summary: Certify any digital object — assign it a permanent UOR identity and IPFS content address.
       description: |
-        Runs `uor_foundation::pipeline::run::<ConstrainedTypeInput, _, SriHasher256>`
-        against a fixed compile unit, then publishes the caller's payload
-        as the structural data block. Returns the content-addressed
-        block pair.
+        **For AI agents:** call this to give any data a permanent, verifiable
+        identity. POST the raw JSON object as the request body. The response
+        tells you `uor_address` (the UOR canonical name) and `@id` (the
+        `ipfs://` URI you can share with anyone to retrieve or verify it).
 
-        Content-Type negotiation:
-        - `application/json` — payload is parsed as a JSON value and
-          canonicalized via DAG-CBOR. Data block codec: `dag-cbor` (0x71).
-          Integers **must** fit in `i64` or `u64` (see 400 responses below).
-          Max body size: 10 MB.
-        - `application/vnd.ipld.dag-cbor` — body must be already-canonical
-          DAG-CBOR bytes. The server decodes, re-encodes, and rejects
-          any input whose bytes do not match the canonical form. Data
-          block codec: `dag-cbor` (0x71). Max body size: 100 MB.
-        - anything else — payload is stored as opaque bytes. Data block
-          codec: `raw` (0x55). Max body size: 100 MB.
+        **Content-Type negotiation:**
+        - `application/json` — any JSON object; canonicalized via DAG-CBOR.
+          Integers must fit in `i64` or `u64`. Max 10 MB.
+        - `application/vnd.ipld.dag-cbor` — pre-encoded DAG-CBOR bytes
+          (must already be canonical). Max 100 MB.
+        - anything else — stored as opaque bytes with `raw` codec. Max 100 MB.
 
-        Idempotency is implicit: the same payload + context yields the
-        same `data_cid` and `certificate_cid`.
+        **Idempotency:** the same payload always returns the same `@id` and
+        `uor_address`. Safe to call multiple times.
       parameters:
         - name: X-UOR-Context
           in: header
@@ -96,9 +103,9 @@ paths:
               schema: { type: string, example: "public, max-age=300, must-revalidate" }
               description: |
                 5-minute freshness + must-revalidate because the response
-                body embeds `urls.data` / `urls.cert` absolute URLs that
-                can change across deployments. The block endpoints
-                themselves emit `immutable` (v0.2.0+).
+                body embeds `gateway.*` absolute URLs that can change
+                across deployments. The block endpoints themselves emit
+                `immutable` (v0.2.0+).
             ETag:
               schema: { type: string, example: "\"bafyreicertcid…\"" }
             Warning:
@@ -110,7 +117,7 @@ paths:
                 Set `Content-Type: application/json` or
                 `application/vnd.ipld.dag-cbor` explicitly to avoid.
           content:
-            application/json:
+            application/ld+json:
               schema: { $ref: "#/components/schemas/CertifyResponse" }
         "400":
           description: |
@@ -226,6 +233,49 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /.well-known/ai-plugin.json:
+    get:
+      operationId: aiPlugin
+      summary: OpenAI GPT Actions / ChatGPT Plugin manifest.
+      description: |
+        Returns the AI plugin manifest that registers this service as a
+        callable tool in ChatGPT, GPT Actions, and any agent framework
+        that follows the OpenAI plugin discovery convention. The manifest
+        points at `GET /v1/openapi.yaml` so the agent automatically
+        learns all available operations.
+      responses:
+        "200":
+          description: Plugin manifest.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIPluginManifest" }
+
+  /v1/openai-tools:
+    get:
+      operationId: openaiTools
+      summary: OpenAI function-calling tool definitions for every operation.
+      description: |
+        Returns a JSON array of OpenAI-format tool definitions. Paste this
+        directly into any OpenAI-compatible agent:
+
+        ```python
+        import requests, openai
+        tools = requests.get("https://…/v1/openai-tools").json()
+        openai.chat.completions.create(model="gpt-4o", tools=tools, messages=[…])
+        ```
+
+        Compatible with: OpenAI SDK, LangChain `OpenAIFunctionsAgent`,
+        CrewAI, AutoGPT, AWS Bedrock Agents, LlamaIndex, and any framework
+        implementing the OpenAI function-calling standard.
+      responses:
+        "200":
+          description: Array of OpenAI function-calling tool definitions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OpenAITool" }
+
   /v1/health:
     get:
       operationId: health
@@ -284,72 +334,137 @@ components:
   schemas:
     CertifyResponse:
       type: object
-      required: [id, data_cid, certificate_cid, integrity, digestMultibase, foundation_version, context, urls]
+      description: |
+        **v0.5.0.** A valid JSON-LD 1.1 document. Field order follows the
+        W3C convention: `@context` → `@type` → identity → proof → convenience.
+
+        One-line story: UOR admitted the object → assigned `uor_address`
+        (ontological name) → that maps 1-to-1 to `@id` (IPFS content address).
+      required: ["@context", "@type", "uor_address", "@id", "certificate", "integrity", "digestMultibase", "foundation_version", "gateway"]
       properties:
-        id:
+        "@context":
           type: string
-          description: Opaque token callers store. Equals `certificate_cid`.
-          example: "bafyreic72oorcja3h7e7suwg3qgdnfbdpyti3dy54zcebifn535yvq2lbq"
-        data_cid:
+          format: uri
+          description: |
+            JSON-LD 1.1 context IRI — the UOR ontology namespace that
+            defines every term in this document. The context document
+            itself is pinned in IPFS for permanence; the IRI is its
+            canonical human-readable name.
+          example: "https://uor.foundation/"
+        "@type":
           type: string
-          description: CID v1 of the structural data block.
-        certificate_cid:
+          format: uri
+          description: |
+            JSON-LD type as a full IRI, grounded in the UOR-Framework
+            ontology (github.com/UOR-Foundation/UOR-Framework, namespace
+            `state`). `GroundedContext` means the object was formally
+            admitted by the UOR kernel and reached full saturation.
+          example: "https://uor.foundation/state/GroundedContext"
+        uor_address:
           type: string
-          description: CID v1 of the certificate block (contains a link back to `data_cid`).
+          description: |
+            **The UOR canonical name.** Multibase base58btc (`z`-prefix)
+            over the 16-byte big-endian unit address assigned by the UOR
+            kernel. This is the result of UOR name-resolution — stable,
+            ontological, and independent of storage location.
+
+            **Idempotent:** the same payload always yields the same
+            `uor_address` and `@id`, regardless of how many times you
+            call certify or which client you use.
+          example: "z9Yrf1BFzxkMGXLmhzCxAivRPMBn3BwD"
+        "@id":
+          type: string
+          format: uri
+          description: |
+            **The content address.** `ipfs://<data_cid>` — permanent,
+            gateway-independent IPFS URI. Retrievable from any public
+            IPFS node without depending on this service. The 1-to-1
+            content-addressed counterpart to `uor_address`.
+          example: "ipfs://bafyreic72oorcja3h7e7suwg3qgdnfbdpyti3dy54zcebifn535yvq2lbq"
+        certificate:
+          type: string
+          format: uri
+          description: |
+            `ipfs://<certificate_cid>` — IPFS URI of the UOR admission proof
+            (DAG-CBOR block). Use `gateway.vc` to resolve it as a W3C
+            Verifiable Credential 2.0 document.
+          example: "ipfs://bafyreig3lqv5fblgr3vupfvzmxnbzq2xqrvqimhpjhbmxkynqpqcxpxhq4"
         integrity:
           type: string
           description: |
-            SRI-2 `sha256-<base64>` attribute over the data-block bytes.
-            For use with browser `<link integrity="…">` when fetching
-            the block bytes as `application/vnd.ipld.raw` (IPIP-402).
+            SRI-2 `sha256-<base64>` over the data-block bytes. Drop
+            directly into an HTML `<link integrity="…">` tag or CDN
+            integrity check. No libraries needed.
           example: "sha256-U0fJjNb+W0AcFFYQmbmBdjP44x+Gg6z6GnYf5O4YWno="
         digestMultibase:
           type: string
           description: |
-            **v0.3.0.** The same SHA-256 digest as `integrity`, re-encoded in the
-            W3C-canonical `digestMultibase` form: `u<base64url multibase>` of
-            the multihash envelope (0x12, 0x20, digest). Interoperable with
-            Data Integrity 1.0's `digestMultibase` property and tooling that
-            consumes multihash / multibase primitives.
+            W3C Data Integrity 1.0 `digestMultibase`: Base64Url multibase
+            over the multihash envelope (0x12, 0x20, SHA-256 digest).
+            Interoperable with any DI 1.0 verifier.
           example: "uEiArPBHXCiF2s4qwX4RCOcFujtR3WIwL53bBKjZnDCFaHg"
         foundation_version:
           type: string
-          description: "`uor-foundation` version the admission ran under."
+          description: "`uor-foundation` kernel version that ran the admission pipeline."
           example: "0.3.0"
-        context:
-          $ref: "#/components/schemas/ContextInfo"
-        urls:
-          $ref: "#/components/schemas/Urls"
-    ContextInfo:
+        gateway:
+          $ref: "#/components/schemas/Gateway"
+    Gateway:
       type: object
-      required: [iri, cid]
-      properties:
-        iri: { type: string, format: uri }
-        cid: { type: string }
-    Urls:
-      type: object
+      description: |
+        HTTP convenience endpoints for block retrieval. Secondary to the
+        canonical `@id` and `certificate` IPFS URIs — use those for
+        durable references; use `gateway` for browser/HTTP convenience.
       required: [data, cert, jsonld, vc]
       properties:
         data:
           type: string
-          description: Absolute gateway URL for the raw data block (IPIP-402 bytes).
+          description: Raw IPLD data block bytes (IPIP-402 trustless gateway).
         cert:
           type: string
-          description: Absolute gateway URL for the raw certificate block.
+          description: Raw IPLD certificate block bytes.
         jsonld:
           type: string
-          description: |
-            **v0.3.0.** Absolute URL that returns the certificate block as a
-            JSON-LD document (`application/ld+json`). Convenience — same as
-            GETting `cert` with `Accept: application/ld+json` or
-            `?as=jsonld`.
+          description: Certificate block projected as a JSON-LD document (`application/ld+json`).
         vc:
           type: string
           description: |
-            **v0.3.0.** Absolute URL that returns the certificate block as a
-            signed W3C VC 2.0 credential (`application/vc+ld+json`).
-            The `proof.cryptosuite` is `uor-dag-cbor-ed25519-2025` when the
-            service has a signing key configured, otherwise `uor-dag-cbor-2025`.
+            Certificate block projected as a W3C VC 2.0 credential
+            (`application/vc+ld+json`). `proof.cryptosuite` is
+            `uor-dag-cbor-ed25519-2025` (signed) or `uor-dag-cbor-2025`
+            (unsigned) depending on service configuration.
+    AIPluginManifest:
+      type: object
+      description: OpenAI GPT Actions / ChatGPT Plugin discovery manifest.
+      required: [schema_version, name_for_human, name_for_model, description_for_human, description_for_model, auth, api]
+      properties:
+        schema_version: { type: string, example: "v1" }
+        name_for_human: { type: string, example: "UOR Certify" }
+        name_for_model: { type: string, example: "uor_certify" }
+        description_for_human: { type: string }
+        description_for_model: { type: string }
+        auth:
+          type: object
+          properties:
+            type: { type: string, enum: ["none", "bearer", "oauth"] }
+        api:
+          type: object
+          properties:
+            type: { type: string, enum: ["openapi"] }
+            url: { type: string, format: uri }
+    OpenAITool:
+      type: object
+      description: A single OpenAI function-calling tool definition.
+      required: [type, function]
+      properties:
+        type: { type: string, enum: ["function"] }
+        function:
+          type: object
+          required: [name, description, parameters]
+          properties:
+            name: { type: string }
+            description: { type: string }
+            parameters: { type: object }
     CertificateBlock:
       type: object
       description: |

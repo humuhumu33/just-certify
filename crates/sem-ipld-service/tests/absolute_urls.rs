@@ -36,7 +36,7 @@ async fn call_certify(state: ServiceState, extra_headers: &[(&str, &str)]) -> Va
 #[tokio::test]
 async fn urls_use_host_header_when_no_proxy() {
     let body = call_certify(fresh_state(), &[("host", "sem.example:9000")]).await;
-    let data_url = body["urls"]["data"].as_str().unwrap();
+    let data_url = body["gateway"]["data"].as_str().unwrap();
     assert!(
         data_url.starts_with("http://sem.example:9000/v1/blocks/"),
         "got {data_url}"
@@ -54,7 +54,7 @@ async fn urls_respect_x_forwarded_headers() {
         ],
     )
     .await;
-    let data_url = body["urls"]["data"].as_str().unwrap();
+    let data_url = body["gateway"]["data"].as_str().unwrap();
     assert!(
         data_url.starts_with("https://api.uor.foundation/v1/blocks/"),
         "got {data_url}"
@@ -75,7 +75,7 @@ async fn public_base_url_override_wins() {
         ],
     )
     .await;
-    let data_url = body["urls"]["data"].as_str().unwrap();
+    let data_url = body["gateway"]["data"].as_str().unwrap();
     assert!(
         data_url.starts_with("https://cdn.example.com/v1/blocks/"),
         "got {data_url}"
@@ -89,8 +89,9 @@ async fn idempotency_preserved_through_store() {
     let state = fresh_state();
     let a = call_certify(state.clone(), &[("host", "localhost")]).await;
     let b = call_certify(state, &[("host", "localhost")]).await;
-    assert_eq!(a["data_cid"], b["data_cid"]);
-    assert_eq!(a["certificate_cid"], b["certificate_cid"]);
+    // @id = ipfs://<data_cid> and certificate = ipfs://<cert_cid> — both stable
+    assert_eq!(a["@id"], b["@id"]);
+    assert_eq!(a["certificate"], b["certificate"]);
 }
 
 /// v0.2.0: block-GET must carry the restored `immutable` directive.
@@ -113,7 +114,12 @@ async fn block_get_carries_immutable_cache_header() {
         .await
         .unwrap();
     let post_body: Value = serde_json::from_slice(&post_bytes).unwrap();
-    let data_cid = post_body["data_cid"].as_str().unwrap();
+    // @id is now "ipfs://<data_cid>" — strip the scheme prefix
+    let data_cid = post_body["@id"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("ipfs://")
+        .unwrap();
 
     let get = Request::builder()
         .method("GET")

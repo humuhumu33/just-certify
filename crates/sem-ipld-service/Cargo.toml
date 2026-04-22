@@ -1,8 +1,8 @@
 [package]
 name = "sem-ipld-service"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.85"
 license = "Apache-2.0"
 description = "HTTP surface for sem-ipld: POST /v1/certify + GET /v1/blocks/{cid} (IPIP-402 trustless gateway). Backed by a local Kubo IPFS sidecar for durable content-addressed storage."
 

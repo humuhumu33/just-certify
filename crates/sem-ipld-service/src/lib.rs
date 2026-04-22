@@ -148,6 +148,9 @@ pub fn router(state: ServiceState) -> Router {
         .route("/v1/blocks/:cid", get(block_handler))
         .route("/v1/health", get(health_handler))
         .route("/v1/openapi.yaml", get(openapi_handler))
+        // AI-agent discovery: OpenAI plugin manifest + function-calling schema.
+        .route("/.well-known/ai-plugin.json", get(ai_plugin_handler))
+        .route("/v1/openai-tools", get(openai_tools_handler))
         .layer(DefaultBodyLimit::max(OPAQUE_BODY_LIMIT_BYTES))
         .with_state(state)
 }
@@ -155,51 +158,62 @@ pub fn router(state: ServiceState) -> Router {
 // ─── response schema ─────────────────────────────────────────────────────────
 
 /// Response body for `POST /v1/certify`.
+///
+/// A valid JSON-LD 1.1 node. Field order is declaration order (serde
+/// preserves it), matching the W3C convention: `@context` → `@type` →
+/// identity fields → proof fields → convenience layer.
+///
+/// One-line story: UOR admitted the object → assigned `uor_address` →
+/// that maps 1-to-1 to the content-addressed IPFS URI in `@id`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CertifyResponse {
-    /// Opaque token callers store. Equals `certificate_cid`.
+    /// JSON-LD 1.1 context — the UOR ontology IRI that defines every
+    /// term in this document. Parseable by any JSON-LD processor.
+    #[serde(rename = "@context")]
+    pub context_iri: String,
+    /// JSON-LD type — full IRI, no prefix expansion needed. Any
+    /// JSON-LD processor resolves this without fetching the context.
+    #[serde(rename = "@type")]
+    pub object_type: &'static str,
+    /// UOR kernel's canonical name: multibase base58btc (`z`-prefix)
+    /// over the 16-byte big-endian unit address. This is the result of
+    /// UOR name-resolution — the stable ontological identity before any
+    /// IPFS mapping.
+    pub uor_address: String,
+    /// JSON-LD canonical identifier: `ipfs://<data_cid>`. Permanent,
+    /// gateway-independent, and globally retrievable from any public
+    /// IPFS node. The content-addressed counterpart to `uor_address`.
+    #[serde(rename = "@id")]
     pub id: String,
-    /// CID v1 of the structural data block.
-    pub data_cid: String,
-    /// CID v1 of the certificate block.
-    pub certificate_cid: String,
-    /// SRI-2 `sha256-…` attribute.
+    /// `ipfs://<certificate_cid>` — IPFS URI of the UOR admission proof
+    /// (DAG-CBOR block). Resolve via the `gateway.vc` URL for the W3C
+    /// Verifiable Credential 2.0 projection.
+    pub certificate: String,
+    /// SRI-2 `sha256-<base64>` over the data-block bytes. Drop directly
+    /// into an HTML `<link integrity="…">` tag or CDN integrity check.
     pub integrity: String,
-    /// **v0.3.0 new.** The same SHA-256 digest as [`Self::integrity`],
-    /// re-encoded in the W3C-canonical `digestMultibase` form:
-    /// `multibase::Base64Url(multihash(0x12, 0x20, digest))`, prefix `u`.
-    /// Data Integrity 1.0 references this shape for content-addressed
-    /// provenance.
+    /// W3C Data Integrity 1.0 canonical digest: Base64Url multibase over
+    /// the multihash envelope (0x12, 0x20, digest). Interoperable with
+    /// any DI 1.0 verifier.
     #[serde(rename = "digestMultibase")]
     pub digest_multibase: String,
-    /// `uor-foundation` version.
+    /// `uor-foundation` kernel version that ran the admission pipeline.
     pub foundation_version: String,
-    /// Context descriptor.
-    pub context: ContextInfo,
-    /// Absolute gateway URLs.
-    pub urls: Urls,
+    /// HTTP convenience endpoints — secondary to the canonical IPFS
+    /// URIs above. Use `@id` / `certificate` for durable references.
+    pub gateway: Gateway,
 }
 
-/// Context descriptor.
+/// HTTP gateway convenience endpoints.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ContextInfo {
-    /// Canonical IRI.
-    pub iri: String,
-    /// Multibase-b CID.
-    pub cid: String,
-}
-
-/// Absolute gateway URLs. v0.3.0 adds `jsonld` and `vc` projection URLs.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Urls {
-    /// Absolute URL for the raw IPLD data block (codec-faithful bytes).
+pub struct Gateway {
+    /// Raw IPLD data block (codec-faithful bytes, IPIP-402).
     pub data: String,
-    /// Absolute URL for the raw IPLD certificate block.
+    /// Raw IPLD certificate block bytes.
     pub cert: String,
-    /// **v0.3.0 new.** JSON-LD projection of the certificate block.
+    /// Certificate as a JSON-LD document (`application/ld+json`).
     pub jsonld: String,
-    /// **v0.3.0 new.** VC 2.0 credential projection of the certificate
-    /// block, signed with `uor-dag-cbor-2025`.
+    /// Certificate as a W3C VC 2.0 credential (`application/vc+ld+json`).
     pub vc: String,
 }
 
@@ -445,25 +459,26 @@ async fn certify_handler(
     let data_cid_str = block.data_cid.to_string();
     let cert_cid_str = block.certificate_cid.to_string();
 
-    // v0.3.0: digestMultibase is the W3C-canonical form of the same
-    // SHA-256 digest used in `integrity`. sem-ipld's `data_cid` already
-    // has the raw digest in its multihash; lift it out and re-encode.
+    // digestMultibase: W3C-canonical form of the SHA-256 digest.
     let mut digest = [0u8; 32];
     digest.copy_from_slice(&block.data_cid.hash().digest()[..32]);
     let digest_multibase = crate::multibase_util::sha256_digest_multibase(&digest);
 
+    // unit_address: UOR kernel's canonical name — multibase base58btc
+    // over the 16-byte big-endian representation of the u128 address.
+    let unit_address_bytes = grounded.unit_address().as_u128().to_be_bytes();
+    let unit_address = crate::multibase_util::encode_base58btc(&unit_address_bytes);
+
     let response_body = CertifyResponse {
-        id: cert_cid_str.clone(),
-        data_cid: data_cid_str.clone(),
-        certificate_cid: cert_cid_str.clone(),
+        context_iri: state.context.iri.to_string(),
+        object_type: "https://uor.foundation/state/GroundedContext",
+        uor_address: unit_address,
+        id: format!("ipfs://{data_cid_str}"),
+        certificate: format!("ipfs://{cert_cid_str}"),
         integrity: block.integrity_attr.clone(),
         digest_multibase,
         foundation_version: sem_ipld::REQUIRED_UOR_FOUNDATION_VERSION.into(),
-        context: ContextInfo {
-            iri: state.context.iri.to_string(),
-            cid: state.context.cid.to_string(),
-        },
-        urls: Urls {
+        gateway: Gateway {
             data: format!("{base}/v1/blocks/{data_cid_str}"),
             cert: format!("{base}/v1/blocks/{cert_cid_str}"),
             jsonld: format!("{base}/v1/blocks/{cert_cid_str}?as=jsonld"),
@@ -472,12 +487,17 @@ async fn certify_handler(
     };
 
     let mut resp = (StatusCode::CREATED, Json(response_body)).into_response();
+    // The response is a JSON-LD 1.1 document — W3C/IANA mandate application/ld+json.
+    // Browsers and HTTP clients treat it as JSON; OpenAI agents parse it correctly.
+    resp.headers_mut()
+        .insert(header::CONTENT_TYPE, "application/ld+json".parse().unwrap());
     resp.headers_mut().insert(
         header::CACHE_CONTROL,
         CACHE_CONTROL_CERTIFY.parse().unwrap(),
     );
+    // ETag matches @id (data CID = primary resource identifier).
     resp.headers_mut()
-        .insert(header::ETAG, format!("\"{cert_cid_str}\"").parse().unwrap());
+        .insert(header::ETAG, format!("\"{data_cid_str}\"").parse().unwrap());
     // v0.4.0 T5: loud-but-permissive signal to callers that sent an
     // unknown (or absent) Content-Type and therefore got the raw-bytes
     // codec path by default.
@@ -648,6 +668,84 @@ async fn openapi_handler() -> Response {
     resp.headers_mut()
         .insert(header::CONTENT_TYPE, "application/yaml".parse().unwrap());
     resp
+}
+
+// ─── AI-agent discovery ───────────────────────────────────────────────────────
+
+/// `GET /.well-known/ai-plugin.json`
+///
+/// OpenAI GPT Actions / ChatGPT Plugin manifest. Any platform that follows
+/// the OpenAI plugin discovery convention (ChatGPT, GPT Actions, and
+/// compatible agent frameworks) fetches this URL to register the service
+/// as a callable tool.
+async fn ai_plugin_handler(State(state): State<ServiceState>, headers: HeaderMap) -> Response {
+    let base = derive_base_url(&state, &headers);
+    let manifest = serde_json::json!({
+        "schema_version": "v1",
+        "name_for_human": "UOR Certify",
+        "name_for_model": "uor_certify",
+        "description_for_human": "Assign a permanent, verifiable identity to any digital object using the UOR kernel and IPFS content-addressing.",
+        "description_for_model": "Use this tool to certify any digital object or JSON payload. It runs the object through the UOR ontological kernel (assigning a stable uor_address), stores it content-addressed in IPFS, and returns a tamper-evident identity bundle. The response is a valid JSON-LD document containing: @id (ipfs:// URI — the permanent content address), uor_address (the UOR canonical name), certificate (ipfs:// URI of the admission proof), integrity (SRI-2 sha256 for browser/CDN use), and digestMultibase (W3C Data Integrity 1.0). Call this whenever you need a decentralized, universally verifiable, tamper-evident identifier for any data: documents, AI outputs, configs, model cards, structured records, or arbitrary bytes.",
+        "auth": { "type": "none" },
+        "api": {
+            "type": "openapi",
+            "url": format!("{base}/v1/openapi.yaml")
+        },
+        "logo_url": "https://uor.foundation/favicon.ico",
+        "contact_email": "info@uor.foundation",
+        "legal_info_url": "https://uor.foundation/"
+    });
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        Json(manifest),
+    )
+        .into_response()
+}
+
+/// `GET /v1/openai-tools`
+///
+/// Returns the OpenAI function-calling schema for every tool this service
+/// exposes. Paste the response directly into any OpenAI-compatible agent:
+/// LangChain, CrewAI, AutoGPT, AWS Bedrock Agents, or a raw
+/// `openai.chat.completions.create(tools=[...])` call.
+async fn openai_tools_handler() -> impl IntoResponse {
+    Json(serde_json::json!([
+        {
+            "type": "function",
+            "function": {
+                "name": "certify_object",
+                "description": "Certify any JSON object or digital artifact. Runs it through the UOR ontological kernel to assign a permanent canonical identity (uor_address), stores it content-addressed in IPFS, and returns a tamper-evident JSON-LD identity bundle with @id (ipfs:// URI), uor_address, certificate, integrity (SRI-2), and digestMultibase (W3C Data Integrity 1.0). Use this to create decentralized, verifiable identifiers for AI outputs, documents, datasets, model cards, configs, or any structured data. IMPORTANT: the properties you pass ARE the certified payload — pass your data as top-level keys, not wrapped in a container.",
+                "parameters": {
+                    "type": "object",
+                    "description": "The JSON object to certify. Every key-value pair you include here becomes part of the certified, content-addressed payload. The entire arguments object is POSTed as-is to the certify endpoint.",
+                    "additionalProperties": true
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_certified_block",
+                "description": "Retrieve a previously certified block by its CID. Use the CID from the @id field (strip the ipfs:// prefix) or certificate field of a prior certify_object response. Supports projection to JSON-LD (append ?as=jsonld) or W3C VC 2.0 (append ?as=vc).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "cid": {
+                            "type": "string",
+                            "description": "The CIDv1 of the block to retrieve (base32 string, e.g. bafyrei…). Obtained from the @id or certificate field of certify_object."
+                        },
+                        "projection": {
+                            "type": "string",
+                            "enum": ["raw", "jsonld", "vc"],
+                            "description": "Output format. raw = IPLD block bytes (default); jsonld = JSON-LD document; vc = W3C Verifiable Credential 2.0."
+                        }
+                    },
+                    "required": ["cid"]
+                }
+            }
+        }
+    ]))
 }
 
 // ─── errors ──────────────────────────────────────────────────────────────────

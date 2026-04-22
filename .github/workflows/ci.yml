@@ -14,16 +14,17 @@ jobs:
     name: fmt / clippy / test
     runs-on: ubuntu-latest
     steps:
-      # Check out both repos as siblings so the path dependency
-      # path = "../../../../UOR-Framework/foundation" resolves correctly.
       - uses: actions/checkout@v4
-        with:
-          path: just-certify
 
-      - uses: actions/checkout@v4
-        with:
-          repository: uor-foundation/UOR-Framework
-          path: UOR-Framework
+      # The path dependency in crates/sem-ipld/Cargo.toml is
+      # "../../../../UOR-Framework/foundation" — four levels above the
+      # crate, which is two levels above the workspace root.  On the
+      # runner that resolves to /home/runner/work/UOR-Framework, which
+      # is outside $GITHUB_WORKSPACE, so actions/checkout can't place
+      # it there.  A plain git clone to the exact absolute path is the
+      # only reliable solution.
+      - name: Clone UOR-Framework at expected path
+        run: git clone --depth=1 https://github.com/uor-foundation/UOR-Framework ${{ runner.workspace }}/../UOR-Framework
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -34,18 +35,13 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            just-certify/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('just-certify/Cargo.lock') }}
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
       - run: cargo fmt --all -- --check
-        working-directory: just-certify
-
       - run: cargo clippy --all-targets --all-features -- -D warnings
-        working-directory: just-certify
-
       - run: cargo test --all
-        working-directory: just-certify
 
   openapi:
     name: Lint OpenAPI spec

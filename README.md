@@ -140,6 +140,25 @@ tools = requests.get("https://api.uor.foundation/v1/openai-tools").json()
 | RAG sources can't be verified | Every indexed chunk gets a `uor_address` — cite it alongside the embedding, prove it's unchanged |
 | Credential verification requires the issuer | W3C VC + `uor-dag-cbor-2025` = offline-verifiable, cryptographically bound to content |
 
+### Two-layer identity: content address + compact handle
+
+The response carries two identity fields with distinct roles:
+
+| Field | What it is | Changes when? |
+|---|---|---|
+| `@id` | `ipfs://<CID>` — full 32-byte SHA-256 multihash of the canonical payload, encoded in CIDv1 | Any byte change to the payload |
+| `uor_address` | First 16 bytes of the same SHA-256, multibase base58btc — a compact, unique handle grounded in the UOR content-addressing namespace (`u:digest` / `u:canonicalBytes`) | Any byte change to the payload |
+
+Both are fully deterministic: the same payload always produces the same `@id` and the same `uor_address`. `uor_address` is a shorter handle for use in agent memory, provenance chains, and knowledge graph nodes where a full CID URI is verbose.
+
+The `certificate` field carries the UOR kernel's type-level admission proof — the `GroundingCertificate` attesting that the payload was processed by the `ConstrainedTypeInput` schema at Witt level W8. This is the kernel's structural invariant, separate from the per-object content address.
+
+Practical consequence for an AI coding agent:
+
+- Use `@id` as the **integrity anchor** — proves the exact bytes delivered to the user have not changed, verifiable from any IPFS node without trusting the agent or this service.
+- Use `uor_address` as the **compact identity handle** — shorter than the full CID, unique per object, suitable as a memory key or provenance pointer in multi-agent pipelines.
+- Use `certificate` to verify the object was admitted by the UOR kernel — the W3C VC projection (`?as=vc`) exposes this as an offline-verifiable credential.
+
 ---
 
 ## Standards

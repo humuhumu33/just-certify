@@ -12,13 +12,15 @@ This project changes that.
 
 POST any digital object to `POST /v1/certify`. You get back two identifiers:
 
-**`uor_address`** — the UOR kernel's canonical name for this object. Not a hash of bytes. The output of a formal ontological kernel ([UOR-Framework](https://github.com/UOR-Foundation/UOR-Framework)) that evaluates the object's logical structure within a declared semantic context and produces a canonical mathematical identity — independent of encoding, location, or who issued it.
+**`uor_address`** — a compact, unique 128-bit handle for this object, derived from the first 16 bytes of its canonical SHA-256 digest and grounded in the UOR content-addressing namespace (`u:digest` / `u:canonicalBytes` per the [UOR-Framework](https://github.com/UOR-Foundation/UOR-Framework) spec). Shorter than a full CID — designed as a memory key, provenance pointer, and knowledge-graph node identifier for agent systems.
 
-**`@id`** — `ipfs://<CID>` — the permanent, globally retrievable content address. Resolves from any public IPFS node. No account, no API key, no dependency on this service.
+**`@id`** — `ipfs://<CID>` — the permanent, globally retrievable content address. The full 32-byte SHA-256 multihash in CIDv1 form. Resolves from any public IPFS node. No account, no API key, no dependency on this service.
 
-The chain between them:
+**`certificate`** — `ipfs://<CID>` — the UOR kernel's admission proof. A `GroundingCertificate` attesting that the payload was processed by the `ConstrainedTypeInput` schema at Witt level W8. Projects to a W3C Verifiable Credential via `?as=vc`.
 
-> *"This object was evaluated by the UOR kernel, received a provably canonical identity, and that identity was expressed as an IPLD content address that anyone, anywhere can retrieve and verify — without trusting you, the issuer, or any registry."*
+Together:
+
+> *"This object was admitted by the UOR kernel, received a permanent content address, and the kernel's proof was issued as a W3C Verifiable Credential — all in a single atomic operation. Anyone, anywhere can retrieve and verify the object from any IPFS node without trusting you, the issuer, or any registry."*
 
 No other system does all of that in a single atomic operation.
 

@@ -162,3 +162,80 @@ async fn certify_post_cache_header_is_not_immutable() {
     assert_eq!(cache, "public, max-age=300, must-revalidate");
     assert!(!cache.contains("immutable"));
 }
+
+// ─── uor_address fix verification ────────────────────────────────────────────
+
+async fn certify_json(state: ServiceState, json: &'static str) -> Value {
+    let app = router(state);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/certify")
+        .header("content-type", "application/json")
+        .header("host", "localhost")
+        .body(Body::from(json))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+/// TEST 1 fix: uor_address must differ for different payloads.
+#[tokio::test]
+async fn uor_address_differs_across_payloads() {
+    let a = certify_json(fresh_state(), r#"{"fn":"iterative","var":"seq"}"#).await;
+    let b = certify_json(fresh_state(), r#"{"fn":"iterative","var":"buf"}"#).await;
+    let c = certify_json(fresh_state(), r#"{"fn":"recursive","algo":"different"}"#).await;
+
+    let ua = a["uor_address"].as_str().unwrap();
+    let ub = b["uor_address"].as_str().unwrap();
+    let uc = c["uor_address"].as_str().unwrap();
+
+    assert_ne!(ua, ub, "different payloads must produce different uor_address");
+    assert_ne!(ua, uc, "different payloads must produce different uor_address");
+    assert_ne!(ub, uc, "different payloads must produce different uor_address");
+
+    // @id must also differ (pre-existing guarantee)
+    assert_ne!(a["@id"], b["@id"]);
+    assert_ne!(a["@id"], c["@id"]);
+}
+
+/// TEST 2 fix: uor_address must change on any byte-level change.
+#[tokio::test]
+async fn uor_address_changes_on_any_mutation() {
+    let base  = certify_json(fresh_state(), r#"{"source":"def f(): pass"}"#).await;
+    let newline = certify_json(fresh_state(), r#"{"source":"def f(): pass\n"}"#).await;
+    let comment = certify_json(fresh_state(), r#"{"source":"def f(): pass # hi"}"#).await;
+
+    let u0 = base["uor_address"].as_str().unwrap();
+    assert_ne!(u0, newline["uor_address"].as_str().unwrap(), "newline must change uor_address");
+    assert_ne!(u0, comment["uor_address"].as_str().unwrap(), "comment must change uor_address");
+}
+
+/// TEST 4 fix: uor_address must be identical for identical payloads (idempotency).
+#[tokio::test]
+async fn uor_address_is_idempotent() {
+    let state = fresh_state();
+    let a = certify_json(state.clone(), r#"{"payload":"same","n":42}"#).await;
+    let b = certify_json(state.clone(), r#"{"payload":"same","n":42}"#).await;
+    let c = certify_json(state,         r#"{"payload":"same","n":42}"#).await;
+
+    assert_eq!(a["uor_address"], b["uor_address"], "idempotency: call A == call B");
+    assert_eq!(b["uor_address"], c["uor_address"], "idempotency: call B == call C");
+    assert_eq!(a["@id"], b["@id"]);
+    assert_eq!(b["@id"], c["@id"]);
+}
+
+/// uor_address must never be the old constant `z9Yrf1azdEyiEQdkaPpk4wc`.
+#[tokio::test]
+async fn uor_address_is_not_the_old_constant() {
+    let old_constant = "z9Yrf1azdEyiEQdkaPpk4wc";
+    for json in [r#"{"v":1}"#, r#"{"fn":"fib"}"#, r#"{"x":"y"}"#] {
+        let body = certify_json(fresh_state(), json).await;
+        assert_ne!(
+            body["uor_address"].as_str().unwrap(),
+            old_constant,
+            "uor_address must not be the old constant for payload {json}"
+        );
+    }
+}

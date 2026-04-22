@@ -344,6 +344,10 @@ async fn certify_handler(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     // 1. Run the UOR admission pipeline.
+    //    unit_address from pipeline::run is a type-class identifier — it names
+    //    the certification schema (ConstrainedTypeInput at W8, budget 1024),
+    //    not the individual object.  We derive uor_address from the data block's
+    //    CID digest below (step 4) so it is unique and content-specific.
     let terms = [Term::Literal {
         value: 1,
         level: WittLevel::W8,
@@ -464,10 +468,14 @@ async fn certify_handler(
     digest.copy_from_slice(&block.data_cid.hash().digest()[..32]);
     let digest_multibase = crate::multibase_util::sha256_digest_multibase(&digest);
 
-    // unit_address: UOR kernel's canonical name — multibase base58btc
-    // over the 16-byte big-endian representation of the u128 address.
-    let unit_address_bytes = grounded.unit_address().as_u128().to_be_bytes();
-    let unit_address = crate::multibase_util::encode_base58btc(&unit_address_bytes);
+    // uor_address: content-derived 128-bit address — first 16 bytes of the
+    // data CID's SHA-256 digest, encoded as multibase base58btc (z-prefix).
+    // Unique per object, deterministic, and grounded in the UOR content-addressing
+    // namespace (u:digest / u:canonicalBytes per the framework spec).
+    let cid_digest = block.data_cid.hash().digest();
+    let mut addr_bytes = [0u8; 16];
+    addr_bytes.copy_from_slice(&cid_digest[..16]);
+    let unit_address = crate::multibase_util::encode_base58btc(&addr_bytes);
 
     let response_body = CertifyResponse {
         context_iri: state.context.iri.to_string(),

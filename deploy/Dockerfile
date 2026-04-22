@@ -51,9 +51,8 @@ COPY --from=build /build/target/release/sem-ipld-service /usr/local/bin/sem-ipld
 COPY deploy/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
-# Persistent volume: Kubo blockstore + service state (none today).
+# /data is mounted as a Railway volume at runtime (VOLUME keyword is banned).
 ENV IPFS_PATH=/data/ipfs
-VOLUME ["/data"]
 
 # Service defaults — override via platform secrets / `docker run -e`.
 ENV SEM_IPLD_STORE=kubo

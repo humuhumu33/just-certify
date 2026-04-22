@@ -1,0 +1,51 @@
+# Cargo workspace manifest.
+#
+# Three crates ship together:
+#
+#   sem-ipld        — library. Content-addressed projection of UOR
+#                     foundation values into IPLD + JSON-LD + SRI-2.
+#   uor-vc-crypto   — library + binaries. Two W3C Data Integrity 1.0
+#                     cryptosuites (`uor-dag-cbor-2025` unsigned,
+#                     `uor-dag-cbor-ed25519-2025` signed) over
+#                     shared DAG-CBOR canonicalization.
+#   sem-ipld-service — binary + library. HTTP service exposing
+#                     POST /v1/certify + GET /v1/blocks/{cid}
+#                     (IPIP-402 gateway) with VC projection.
+#
+# The three are designed to compose in this order — see the root
+# README.md for the architecture diagram.
+
+[workspace]
+resolver = "2"
+members = [
+    "sem-ipld",
+    "uor-vc-crypto",
+    "sem-ipld-service",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.81"
+license = "Apache-2.0"
+repository = "https://github.com/uor-foundation/sem-ipld-service"
+homepage = "https://uor.foundation/"
+authors = ["The UOR Foundation"]
+
+[workspace.lints.clippy]
+# Apply these at the workspace level so CI surfaces the same warnings
+# across all three crates. Individual crates may tighten further.
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+result_large_err = "allow"  # documented per-crate; semantic
+
+# Release profile: LTO on for the service binary + small regressions
+# in compile time.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+# Dev profile: optimize dependencies so iterative builds of the
+# service against Kubo complete in reasonable time.
+[profile.dev.package."*"]
+opt-level = 1

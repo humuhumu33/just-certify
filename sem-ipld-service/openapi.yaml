@@ -1,0 +1,472 @@
+openapi: 3.1.0
+info:
+  title: sem-ipld certify service
+  summary: Content-addressed storage with a UOR admission certificate. One verb in, two CIDs out.
+  description: |
+    A minimal HTTP front-end to the UOR Foundation Rust kernel + the sem-ipld
+    IPLD adapter. Two verbs total.
+
+    **Scope.** This service is the Babel Fish for **content identity** and
+    **admission proof**. It gives any system a shared way to name and
+    re-verify objects without changing wire formats. Semantic translation
+    — canonicalizing different serializations of the same meaning to the
+    same CID — is an *adjacent* layer (URDNA2015 for RDF, JCS for JSON)
+    that composes on top. This service does **not** deliver semantic
+    equivalence alone: two different JSON-LD serializations of the same
+    RDF graph produce two different CIDs here, by design.
+
+    **What is delivered:** content-addressed CIDv1 identifiers, a UOR
+    admission certificate (kernel-minted `Grounded<T>` metadata), IPIP-402
+    trustless gateway for raw block fetch.
+
+    **What is NOT delivered (v0.1.x):** VC 2.0 signing, DID resolution,
+    semantic canonicalization (URDNA2015 / JCS / dag-json ↔ dag-cbor
+    normalization), durable cross-restart storage, rate limiting, auth.
+    These are scoped for future releases or belong in companion layers.
+
+    Every response is still content-addressed, but the v0.1.x `Cache-Control`
+    header is deliberately `public, max-age=300, must-revalidate` (not
+    `immutable`) because the backing store is in-memory and evaporates on
+    restart. `immutable` returns when a durable store lands in v0.2.0.
+  version: "0.4.0"
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: https://api.uor.foundation
+    description: Public production endpoint.
+  - url: http://localhost:8787
+    description: Local development.
+
+paths:
+  /v1/certify:
+    post:
+      operationId: certify
+      summary: Certify a payload through the UOR admission pipeline.
+      description: |
+        Runs `uor_foundation::pipeline::run::<ConstrainedTypeInput, _, SriHasher256>`
+        against a fixed compile unit, then publishes the caller's payload
+        as the structural data block. Returns the content-addressed
+        block pair.
+
+        Content-Type negotiation:
+        - `application/json` — payload is parsed as a JSON value and
+          canonicalized via DAG-CBOR. Data block codec: `dag-cbor` (0x71).
+          Integers **must** fit in `i64` or `u64` (see 400 responses below).
+          Max body size: 10 MB.
+        - `application/vnd.ipld.dag-cbor` — body must be already-canonical
+          DAG-CBOR bytes. The server decodes, re-encodes, and rejects
+          any input whose bytes do not match the canonical form. Data
+          block codec: `dag-cbor` (0x71). Max body size: 100 MB.
+        - anything else — payload is stored as opaque bytes. Data block
+          codec: `raw` (0x55). Max body size: 100 MB.
+
+        Idempotency is implicit: the same payload + context yields the
+        same `data_cid` and `certificate_cid`.
+      parameters:
+        - name: X-UOR-Context
+          in: header
+          required: false
+          schema: { type: string, format: uri, example: "https://uor.foundation/" }
+          description: Override the ontology context. Defaults to canonical.
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string }
+          description: Optional Stripe-style hint; content addressing is already idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: Any JSON value whose integer literals fit in `i64` or `u64`.
+            examples:
+              agent:
+                value: { "agent": "ada", "trust": 0.98 }
+          application/vnd.ipld.dag-cbor:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Created. Block pair is now retrievable.
+          headers:
+            Cache-Control:
+              schema: { type: string, example: "public, max-age=300, must-revalidate" }
+              description: |
+                5-minute freshness + must-revalidate because the response
+                body embeds `urls.data` / `urls.cert` absolute URLs that
+                can change across deployments. The block endpoints
+                themselves emit `immutable` (v0.2.0+).
+            ETag:
+              schema: { type: string, example: "\"bafyreicertcid…\"" }
+            Warning:
+              schema: { type: string, example: '299 - "content-type treated as opaque bytes"' }
+              description: |
+                **v0.4.0.** Present if the caller sent an unrecognised
+                (or absent) `Content-Type` header. The request is still
+                accepted, but routed to the raw-bytes (codec `0x55`) path.
+                Set `Content-Type: application/json` or
+                `application/vnd.ipld.dag-cbor` explicitly to avoid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CertifyResponse" }
+        "400":
+          description: |
+            Malformed request. The response body always has the shape
+            `{ "error": <stable-tag>, "detail": <human-readable> }`. Tags:
+            - `malformed JSON` — body is not valid JSON.
+            - `integer out of DAG-CBOR range` — JSON integer outside `i64::MIN..=u64::MAX`.
+              DAG-CBOR integer major types 0/1 max at `u64::MAX`; arbitrary-
+              precision bignums (CBOR tag 2) are not supported in v0.1.x.
+            - `non-finite number` — JSON contained NaN / Infinity.
+            - `malformed DAG-CBOR` — `application/vnd.ipld.dag-cbor` body failed to decode.
+            - `non-canonical DAG-CBOR` — body decoded but its bytes do not
+              equal the canonical re-encoding of the decoded value.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: |
+            Payload too large. JSON bodies are capped at 10 MB; all other
+            content types at 100 MB.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Kernel admission or encoding failure.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: |
+            Block store (Kubo) unreachable — the admission succeeded
+            but the blocks could not be persisted. Tag:
+            `storage backend unavailable`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/blocks/{cid}:
+    get:
+      operationId: getBlock
+      summary: Fetch a raw IPLD block or its W3C projection.
+      description: |
+        v0.3.0 added two projections:
+
+        | `Accept` header                          | `?as=` param | Result |
+        |------------------------------------------|--------------|--------|
+        | `application/vnd.ipld.raw` (or absent)   | absent / `raw` | Raw block bytes, IPIP-402 |
+        | `application/ld+json`                    | `jsonld`     | JSON-LD projection (cert blocks only) |
+        | `application/vc+ld+json`                 | `vc`         | W3C VC 2.0 credential (cert blocks only) |
+
+        Explicit `?as=` wins over `Accept` negotiation. Requesting
+        `jsonld` or `vc` on a non-cert block returns HTTP 406. The
+        VC projection's proof cryptosuite is
+        `uor-dag-cbor-2025` (unsigned, v0.3.0) or
+        `uor-dag-cbor-ed25519-2025` (Ed25519-signed, v0.4.0 when
+        `SEM_IPLD_ISSUER_KEY_B64` is configured). Consult
+        `/v1/health` → `signing.enabled` to tell which mode the
+        service is running.
+      parameters:
+        - name: cid
+          in: path
+          required: true
+          schema: { type: string }
+          example: "bafyreicti7eyzvx6lnabyfcwccm3talwgp4ogh4gqowpugtwd7so4gc2pi"
+      responses:
+        "200":
+          description: The raw block bytes.
+          headers:
+            Content-Type:
+              schema: { type: string, example: "application/vnd.ipld.raw" }
+            Cache-Control:
+              schema: { type: string, example: "public, max-age=300, must-revalidate" }
+            ETag:
+              schema: { type: string, example: "\"bafyrei…\"" }
+          content:
+            application/vnd.ipld.raw:
+              schema: { type: string, format: binary }
+        "400":
+          description: |
+            The path parameter is not a well-formed CID. Tag: `malformed CID`.
+            Distinct from 404, which is returned when the CID parses but
+            no block is stored under it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: |
+            The CID is well-formed but no block with this CID exists on
+            this server. Tag: `block not stored`. With v0.2.0's durable
+            Kubo backend, this usually means the CID was produced by a
+            different service instance backed by a different Kubo node.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "406":
+          description: |
+            The caller asked for a projection (`?as=jsonld` or `?as=vc`)
+            but the block is not a UOR certificate block (it's a raw
+            data block or some other payload). Tag: `not acceptable`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: |
+            The block store (Kubo sidecar) is unreachable. Tag:
+            `storage backend unavailable`. A liveness probe against
+            `/v1/health` will return 503 in the same condition.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/health:
+    get:
+      operationId: health
+      summary: Liveness probe + store descriptor + signing state.
+      description: |
+        Returns HTTP 200 with `{status: "ok", store: "<descriptor>",
+        signing: {…}}` when the block store is reachable, or HTTP 503
+        when it is not. The `signing` block tells consumers which
+        cryptosuite to expect on VC projections and (when enabled)
+        publishes the Ed25519 public key in multibase form.
+      responses:
+        "200":
+          description: Live; payload as described below.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, store, signing]
+                properties:
+                  status: { type: string, enum: ["ok"] }
+                  store:  { type: string, example: "kubo 0.30.0" }
+                  signing:
+                    type: object
+                    required: [enabled]
+                    properties:
+                      enabled: { type: boolean }
+                      algorithm:
+                        type: string
+                        enum: ["ed25519"]
+                        description: "Only present when enabled=true."
+                      verification_method:
+                        type: string
+                        example: "did:web:uor.foundation#key-1"
+                      public_key_multibase:
+                        type: string
+                        description: "W3C Multikey (z6Mk…) form of the issuer's Ed25519 public key."
+                        example: "z6MkqvwTWf1v7Tmp9HDHM5j6JurtJLhfiiYcPFuyhVVXsqVc"
+        "503":
+          description: Block store unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/openapi.yaml:
+    get:
+      operationId: openapi
+      summary: This document.
+      responses:
+        "200":
+          description: The OpenAPI spec.
+          content:
+            application/yaml:
+              schema: { type: string }
+
+components:
+  schemas:
+    CertifyResponse:
+      type: object
+      required: [id, data_cid, certificate_cid, integrity, digestMultibase, foundation_version, context, urls]
+      properties:
+        id:
+          type: string
+          description: Opaque token callers store. Equals `certificate_cid`.
+          example: "bafyreic72oorcja3h7e7suwg3qgdnfbdpyti3dy54zcebifn535yvq2lbq"
+        data_cid:
+          type: string
+          description: CID v1 of the structural data block.
+        certificate_cid:
+          type: string
+          description: CID v1 of the certificate block (contains a link back to `data_cid`).
+        integrity:
+          type: string
+          description: |
+            SRI-2 `sha256-<base64>` attribute over the data-block bytes.
+            For use with browser `<link integrity="…">` when fetching
+            the block bytes as `application/vnd.ipld.raw` (IPIP-402).
+          example: "sha256-U0fJjNb+W0AcFFYQmbmBdjP44x+Gg6z6GnYf5O4YWno="
+        digestMultibase:
+          type: string
+          description: |
+            **v0.3.0.** The same SHA-256 digest as `integrity`, re-encoded in the
+            W3C-canonical `digestMultibase` form: `u<base64url multibase>` of
+            the multihash envelope (0x12, 0x20, digest). Interoperable with
+            Data Integrity 1.0's `digestMultibase` property and tooling that
+            consumes multihash / multibase primitives.
+          example: "uEiArPBHXCiF2s4qwX4RCOcFujtR3WIwL53bBKjZnDCFaHg"
+        foundation_version:
+          type: string
+          description: "`uor-foundation` version the admission ran under."
+          example: "0.3.0"
+        context:
+          $ref: "#/components/schemas/ContextInfo"
+        urls:
+          $ref: "#/components/schemas/Urls"
+    ContextInfo:
+      type: object
+      required: [iri, cid]
+      properties:
+        iri: { type: string, format: uri }
+        cid: { type: string }
+    Urls:
+      type: object
+      required: [data, cert, jsonld, vc]
+      properties:
+        data:
+          type: string
+          description: Absolute gateway URL for the raw data block (IPIP-402 bytes).
+        cert:
+          type: string
+          description: Absolute gateway URL for the raw certificate block.
+        jsonld:
+          type: string
+          description: |
+            **v0.3.0.** Absolute URL that returns the certificate block as a
+            JSON-LD document (`application/ld+json`). Convenience — same as
+            GETting `cert` with `Accept: application/ld+json` or
+            `?as=jsonld`.
+        vc:
+          type: string
+          description: |
+            **v0.3.0.** Absolute URL that returns the certificate block as a
+            signed W3C VC 2.0 credential (`application/vc+ld+json`).
+            The `proof.cryptosuite` is `uor-dag-cbor-ed25519-2025` when the
+            service has a signing key configured, otherwise `uor-dag-cbor-2025`.
+    CertificateBlock:
+      type: object
+      description: |
+        The DAG-CBOR-encoded body stored under `certificate_cid`. Serialized
+        as a CBOR map with lexicographically-sorted keys per the DAG-CBOR
+        spec (length-first, then byte-wise). All eight fields are always
+        present.
+      required: [context, contextIri, data, fingerprint, foundationVersion, unitAddress, wittBits, wittLevelBits]
+      properties:
+        context:
+          description: |
+            CBOR link (tag 42) to the UOR OWL ontology context block.
+          type: string
+          format: cid-link
+        contextIri:
+          description: |
+            CBOR text string — the canonical IRI of the ontology. Redundant
+            with `context` for tools that do not resolve CIDs.
+          type: string
+        data:
+          description: |
+            CBOR link (tag 42) to the data block — the "link back" that
+            makes the certificate self-describing.
+          type: string
+          format: cid-link
+        fingerprint:
+          description: |
+            CBOR byte string — the width-trimmed `ContentFingerprint`
+            produced by `SriHasher256`. Width is `FINGERPRINT_MAX_BYTES`
+            (32) for SHA-256.
+          type: string
+          format: byte
+        foundationVersion:
+          description: |
+            CBOR text string — the `uor-foundation` version used for
+            admission. Pins the verifier version alongside the ontology.
+          type: string
+          example: "0.3.0"
+        unitAddress:
+          description: |
+            CBOR byte string of exactly 16 bytes — the full 128-bit
+            `ContentAddress::as_u128()` encoded big-endian. No silent truncation.
+          type: string
+          format: byte
+        wittBits:
+          description: |
+            CBOR unsigned integer — `GroundingCertificate::witt_bits()`.
+          type: integer
+          minimum: 0
+          maximum: 65535
+        wittLevelBits:
+          description: |
+            CBOR unsigned integer — `Grounded<T>::witt_level_bits()`.
+          type: integer
+          minimum: 0
+          maximum: 65535
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Stable, machine-parseable tag (e.g. `"malformed CID"`, `"integer out of DAG-CBOR range"`).
+        detail:
+          type: string
+          description: Human-readable explanation. May be absent on some error paths.
+    VerifiableCredential:
+      type: object
+      description: |
+        W3C Verifiable Credential 2.0 projection of a UOR certificate.
+        Emitted by `GET /v1/blocks/{cert_cid}?as=vc`.
+      required: ["@context", type, id, issuer, validFrom, credentialSubject, proof]
+      properties:
+        "@context":
+          type: array
+          items: { type: string }
+          description: Includes `https://www.w3.org/ns/credentials/v2` and UOR context.
+        type:
+          type: array
+          items: { type: string }
+          example: ["VerifiableCredential", "uor:GroundingCredential"]
+        id:
+          type: string
+          format: uri
+          description: "`ipfs://<cert_cid>` — same CID as `certificate_cid` in the certify response."
+        issuer:
+          type: string
+          const: "did:web:uor.foundation"
+        validFrom:
+          type: string
+          format: date-time
+        credentialSubject: { type: object }
+        proof:
+          type: object
+          required: [type, cryptosuite, created, verificationMethod, proofPurpose, proofValue]
+          properties:
+            type: { const: "DataIntegrityProof" }
+            cryptosuite:
+              type: string
+              enum:
+                - "uor-dag-cbor-2025"
+                - "uor-dag-cbor-ed25519-2025"
+              description: |
+                **`uor-dag-cbor-2025`** (v0.3.0 / unsigned). `proofValue`
+                is a CID of the canonical form — tamper-evidence without
+                a signature. Use in single-writer / trusted-cluster
+                deployments.
+
+                **`uor-dag-cbor-ed25519-2025`** (v0.4.0 / Ed25519 over
+                the CID's multihash bytes). `proofValue` is a multibase
+                Ed25519 signature. Use in federated / multi-party
+                scenarios. The service emits this variant when
+                `SEM_IPLD_ISSUER_KEY_B64` is configured; consult
+                `/v1/health` → `signing` to determine the mode at runtime.
+            created:           { type: string, format: date-time }
+            verificationMethod: { type: string, example: "did:web:uor.foundation#key-1" }
+            proofPurpose:      { type: string, example: "assertionMethod" }
+            proofValue:
+              type: string
+              description: |
+                For `uor-dag-cbor-2025`: multibase-base32 (`b…`) CID of the
+                VC's canonical form minus proofValue.
+                For `uor-dag-cbor-ed25519-2025`: multibase-base58btc (`z…`) 64-byte
+                Ed25519 signature over the 34-byte multihash of the
+                canonical form.

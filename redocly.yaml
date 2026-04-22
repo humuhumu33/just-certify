@@ -1,0 +1,7 @@
+rules:
+  # /v1/health and /v1/openapi.yaml have no 4xx surface — both are
+  # read-only, parameter-free endpoints that can only fail with 503.
+  operation-4xx-response: off
+  # localhost is intentionally absent from the spec; this rule fires
+  # on any non-https server URL which we don't use.
+  no-server-example.com: off

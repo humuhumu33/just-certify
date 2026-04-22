@@ -14,7 +14,16 @@ jobs:
     name: fmt / clippy / test
     runs-on: ubuntu-latest
     steps:
+      # Check out both repos as siblings so the path dependency
+      # path = "../../../../UOR-Framework/foundation" resolves correctly.
       - uses: actions/checkout@v4
+        with:
+          path: just-certify
+
+      - uses: actions/checkout@v4
+        with:
+          repository: uor-foundation/UOR-Framework
+          path: UOR-Framework
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -25,19 +34,18 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+            just-certify/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('just-certify/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Checkout UOR-Framework
-        uses: actions/checkout@v4
-        with:
-          repository: uor-foundation/UOR-Framework
-          path: ../UOR-Framework
-
       - run: cargo fmt --all -- --check
+        working-directory: just-certify
+
       - run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: just-certify
+
       - run: cargo test --all
+        working-directory: just-certify
 
   openapi:
     name: Lint OpenAPI spec

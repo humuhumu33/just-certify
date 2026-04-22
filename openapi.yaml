@@ -31,12 +31,13 @@ info:
   version: "0.4.0"
   license:
     name: Apache-2.0
+    identifier: Apache-2.0
 
 servers:
   - url: https://api.uor.foundation
     description: Public production endpoint.
-  - url: http://localhost:8787
-    description: Local development.
+
+security: []
 
 paths:
   /v1/certify:
@@ -176,10 +177,10 @@ paths:
           example: "bafyreicti7eyzvx6lnabyfcwccm3talwgp4ogh4gqowpugtwd7so4gc2pi"
       responses:
         "200":
-          description: The raw block bytes.
+          description: |
+            Block retrieved. Content varies by `Accept` / `?as=` negotiation —
+            raw bytes, JSON-LD projection, or W3C VC 2.0 credential.
           headers:
-            Content-Type:
-              schema: { type: string, example: "application/vnd.ipld.raw" }
             Cache-Control:
               schema: { type: string, example: "public, max-age=300, must-revalidate" }
             ETag:
@@ -187,6 +188,10 @@ paths:
           content:
             application/vnd.ipld.raw:
               schema: { type: string, format: binary }
+            application/ld+json:
+              schema: { $ref: "#/components/schemas/CertificateBlock" }
+            application/vc+ld+json:
+              schema: { $ref: "#/components/schemas/VerifiableCredential" }
         "400":
           description: |
             The path parameter is not a well-formed CID. Tag: `malformed CID`.

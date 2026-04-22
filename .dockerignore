@@ -1,0 +1,44 @@
+# Keep the build context small so `flyctl deploy` doesn't re-upload
+# hundreds of MB of build artifacts on every deploy.
+
+# Rust build output (regenerated inside the image).
+**/target/
+**/*.rs.bk
+
+# Per-crate lockfiles (workspace Cargo.lock is authoritative).
+sem-ipld/Cargo.lock
+sem-ipld-service/Cargo.lock
+uor-vc-crypto/Cargo.lock
+
+# Git + editor state.
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+.claude/
+
+# Python / reviewer bycatch.
+**/__pycache__/
+**/*.pyc
+sem-ipld/bottle_test.py
+sem-ipld/bottle_test2.py
+sem-ipld/bottle_v3.py
+sem-ipld/t21_jsverifier.mjs
+
+# Legacy stub files (not referenced by any `mod` declaration).
+sem-ipld/src/cid/
+sem-ipld/src/codec/
+sem-ipld/src/encode.rs
+sem-ipld/src/hasher.rs
+sem-ipld/src/load.rs
+sem-ipld/src/macros.rs
+sem-ipld/src/projection/
+sem-ipld/src/hasher/sri.rs
+sem-ipld/tests/dag_cbor.rs
+sem-ipld/tests/prov_trace.rs
+
+# Docs not needed to build the binary. The spec, DID doc, READMEs,
+# etc. are served from the GitHub repo, not from inside the container.
+**/*.md
+!sem-ipld-service/docs/did/did.json

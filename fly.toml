@@ -1,0 +1,86 @@
+# Fly.io deployment manifest for just-certify.
+#
+# First-time setup (one-time):
+#
+#   flyctl auth login
+#   flyctl launch --copy-config --no-deploy      # accepts this file as-is
+#   flyctl volumes create ipfs_data --size 5 --region ord
+#   flyctl deploy                                # builds Dockerfile, ships image
+#
+# Optional — switch from unsigned (default) to signed mode later:
+#
+#   cargo run --release -p uor-vc-crypto --bin gen-issuer-key
+#   # paste the private_key_b64 line:
+#   flyctl secrets set SEM_IPLD_ISSUER_KEY_B64='<paste>'
+#   # paste the public_key_multibase into sem-ipld-service/docs/did/did.json,
+#   # commit, then:
+#   flyctl deploy
+
+app = "just-certify"
+primary_region = "ord"        # change to your preferred region
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Public HTTP service on :8787 (the service's bind port) behind Fly's
+# global edge + automatic TLS. The external ports are 80 (redirect to 443)
+# and 443 (TLS terminated by Fly, HTTP/2 to the app).
+[[services]]
+  internal_port = 8787
+  protocol      = "tcp"
+  auto_stop_machines = false  # API keeps warm; cold starts hurt UX
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 200
+    soft_limit = 100
+
+  # Fly's liveness probe. /v1/health returns:
+  #   200 with {store, signing} on healthy
+  #   503 with {status:"degraded"} when Kubo is unreachable
+  [[services.http_checks]]
+    path          = "/v1/health"
+    interval      = "15s"
+    timeout       = "5s"
+    grace_period  = "30s"    # allow time for Kubo to come up
+    method        = "get"
+    protocol      = "http"
+
+# Persistent volume for Kubo's blockstore. Blocks pinned by `pin=true`
+# on every `block/put` call survive container restarts and machine
+# rescheduling — the v0.2.0 durability guarantee depends on this.
+[mounts]
+  source      = "ipfs_data"
+  destination = "/data"
+
+[env]
+  # Service config — no secrets here. Secrets go through `flyctl secrets set`.
+  SEM_IPLD_STORE           = "kubo"
+  SEM_IPLD_IPFS_API_URL    = "http://127.0.0.1:5001"
+  SEM_IPLD_BIND            = "0.0.0.0:8787"
+  SEM_IPLD_LRU_CAPACITY    = "10000"
+  SEM_IPLD_IPFS_TIMEOUT_MS = "5000"
+
+  # Set this to the public URL your users will see so response `urls.*`
+  # fields point at the right host. Defaults to the apparent request
+  # origin when absent (works fine behind Fly's TLS termination).
+  # PUBLIC_BASE_URL        = "https://just-certify.fly.dev"
+
+  RUST_LOG                 = "sem_ipld_service=info,tower_http=info"
+
+[[vm]]
+  size       = "shared-cpu-1x"    # 1 vCPU burstable
+  memory     = "512mb"            # Kubo + service headroom
+  cpu_kind   = "shared"
+  cpus       = 1

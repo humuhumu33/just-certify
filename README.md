@@ -64,6 +64,19 @@ the service. Generate a key with
 
 Full spec: [`sem-ipld-service/docs/specs/uor-dag-cbor-2025.md`](sem-ipld-service/docs/specs/uor-dag-cbor-2025.md).
 
+## Deploy
+
+A ready-to-ship Fly.io setup lives alongside the code:
+
+```bash
+flyctl launch --copy-config --no-deploy
+flyctl volumes create ipfs_data --size 5 --region ord
+flyctl deploy
+```
+
+See [DEPLOY.md](DEPLOY.md) for the full walk-through — prerequisites,
+smoke test, signed-mode setup, day-2 ops.
+
 ## Releases
 
 Four release cycles, each with a CHANGELOG in the corresponding

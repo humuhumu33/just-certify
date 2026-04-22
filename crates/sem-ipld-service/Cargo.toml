@@ -11,7 +11,7 @@ description = "HTTP surface for sem-ipld: POST /v1/certify + GET /v1/blocks/{cid
 sem-ipld = { path = "../sem-ipld", features = ["publish"] }
 
 # Kernel.
-uor-foundation = { path = "../../../UOR-Framework/foundation", default-features = false, features = ["alloc", "std"] }
+uor-foundation = { path = "../../../../UOR-Framework/foundation", default-features = false, features = ["alloc", "std"] }
 
 # IPLD types.
 cid = { version = "0.11", default-features = false, features = ["alloc"] }

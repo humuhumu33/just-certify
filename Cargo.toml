@@ -18,9 +18,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "sem-ipld",
-    "uor-vc-crypto",
-    "sem-ipld-service",
+    "crates/sem-ipld",
+    "crates/uor-vc-crypto",
+    "crates/sem-ipld-service",
 ]
 
 [workspace.package]

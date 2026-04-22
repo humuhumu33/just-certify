@@ -658,7 +658,7 @@ async fn health_handler(State(state): State<ServiceState>) -> Response {
 }
 
 async fn openapi_handler() -> Response {
-    let spec = include_str!("../openapi.yaml");
+    let spec = include_str!("../../../openapi.yaml");
     let mut resp = Response::new(axum::body::Body::from(spec));
     resp.headers_mut().insert(
         header::CONTENT_TYPE,

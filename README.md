@@ -1,14 +1,17 @@
 # sem-ipld
 
+[![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white)](openapi.yaml)
+[![Swagger UI](https://img.shields.io/badge/Swagger_UI-live-85EA2D?logo=swagger&logoColor=black)](https://petstore.swagger.io/?url=https://api.uor.foundation/v1/openapi.yaml)
+
 **Content-addressed, W3C-verifiable identity for anything you can serialize.**
 
 Three Rust crates:
 
 | Crate | Purpose |
 |---|---|
-| [`sem-ipld`](sem-ipld/) | Library. Projects UOR-admitted values into IPLD + JSON-LD + SRI-2. |
-| [`uor-vc-crypto`](uor-vc-crypto/) | Two W3C Data Integrity 1.0 cryptosuites — unsigned + Ed25519-signed. |
-| [`sem-ipld-service`](sem-ipld-service/) | HTTP service: `POST /v1/certify` + IPIP-402 block gateway. |
+| [`sem-ipld`](crates/sem-ipld/) | Library. Projects UOR-admitted values into IPLD + JSON-LD + SRI-2. |
+| [`uor-vc-crypto`](crates/uor-vc-crypto/) | Two W3C Data Integrity 1.0 cryptosuites — unsigned + Ed25519-signed. |
+| [`sem-ipld-service`](crates/sem-ipld-service/) | HTTP service: `POST /v1/certify` + IPIP-402 block gateway. |
 
 ## The one-paragraph pitch
 
@@ -19,6 +22,20 @@ artifact — and get back a permanent content-addressed identifier
 UOR-specific code via the registered cryptosuite `uor-dag-cbor-2025`.
 Anything that can `curl` integrates. Anything that reads IPFS reads
 our blocks.
+
+## API
+
+The full contract lives in [`openapi.yaml`](openapi.yaml) at the repo root (OpenAPI 3.1.0).
+The running service also serves it at `GET /v1/openapi.yaml`.
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/v1/certify` | `POST` | Admit any payload → returns `data_cid`, `certificate_cid`, SRI integrity, W3C VC URLs |
+| `/v1/blocks/{cid}` | `GET` | IPIP-402 trustless gateway — raw block, JSON-LD, or VC 2.0 projection |
+| `/v1/health` | `GET` | Liveness probe + store descriptor + signing state |
+| `/v1/openapi.yaml` | `GET` | This spec |
+
+Browse interactively: **[Swagger UI →](https://petstore.swagger.io/?url=https://api.uor.foundation/v1/openapi.yaml)**
 
 ## Quick start
 
@@ -62,20 +79,15 @@ Enable the signed variant by setting `SEM_IPLD_ISSUER_KEY_B64` on
 the service. Generate a key with
 `cargo run --release -p uor-vc-crypto --bin gen-issuer-key`.
 
-Full spec: [`sem-ipld-service/docs/specs/uor-dag-cbor-2025.md`](sem-ipld-service/docs/specs/uor-dag-cbor-2025.md).
+Full spec: [`crates/sem-ipld-service/docs/specs/uor-dag-cbor-2025.md`](crates/sem-ipld-service/docs/specs/uor-dag-cbor-2025.md).
 
 ## Deploy
 
-A ready-to-ship Fly.io setup lives alongside the code:
+One click, via Railway. New project → deploy from this repo →
+**Settings → Volumes** → mount `/data` → **Generate Domain**. Done.
 
-```bash
-flyctl launch --copy-config --no-deploy
-flyctl volumes create ipfs_data --size 5 --region ord
-flyctl deploy
-```
-
-See [DEPLOY.md](DEPLOY.md) for the full walk-through — prerequisites,
-smoke test, signed-mode setup, day-2 ops.
+Full walk-through with smoke tests, signed-mode setup, and day-2
+operations: [deploy/DEPLOY.md](deploy/DEPLOY.md).
 
 ## Releases
 

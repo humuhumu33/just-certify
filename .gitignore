@@ -1,17 +1,13 @@
-# ─── Rust build artifacts ────────────────────────────────────────────────────
+# Rust build artifacts
 /target/
 **/target/
 **/*.rs.bk
 
-# Per-crate Cargo.lock — only the workspace Cargo.lock at the root matters.
-sem-ipld/Cargo.lock
-sem-ipld-service/Cargo.lock
-uor-vc-crypto/Cargo.lock
+# Per-crate Cargo.lock — only the workspace Cargo.lock matters.
+**/Cargo.lock
+!/Cargo.lock
 
-# Redundant sub-crate .gitignore files — root .gitignore covers everything.
-sem-ipld/.gitignore
-
-# ─── Session / editor state ──────────────────────────────────────────────────
+# Editor / IDE state
 .vscode/
 .idea/
 .DS_Store
@@ -20,37 +16,12 @@ Thumbs.db
 *~
 .claude/
 
-# ─── Python / tooling bycatch ────────────────────────────────────────────────
+# Python bycatch (if test scripts are run in-tree)
 __pycache__/
 *.pyc
 *.pyo
 
-# ─── External-reviewer artifacts (narrated in each CHANGELOG) ────────────────
-sem-ipld/bottle_test.py
-sem-ipld/bottle_test2.py
-sem-ipld/bottle_v3.py
-sem-ipld/t21_jsverifier.mjs
-sem-ipld-service/reviews/
-
-# ─── Legacy stub files (pre-v0.2 refactor remnants, all empty) ───────────────
-sem-ipld/src/cid/
-sem-ipld/src/codec/
-sem-ipld/src/encode.rs
-sem-ipld/src/hasher.rs
-sem-ipld/src/load.rs
-sem-ipld/src/macros.rs
-sem-ipld/src/projection/
-sem-ipld/src/hasher/sri.rs
-sem-ipld/tests/dag_cbor.rs
-sem-ipld/tests/prov_trace.rs
-
-# ─── Lean-pass removals (kept on disk because the sandbox can't delete) ──────
-SECURITY.md
-CONTRIBUTING.md
-PREPARE_REPO.md
-sem-ipld/DESIGN.md
-
-# ─── Runtime / secrets ───────────────────────────────────────────────────────
+# Runtime / secrets
 .env
 .env.*
 *.pem

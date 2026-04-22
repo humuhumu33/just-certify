@@ -2,7 +2,7 @@
 //!
 //! This is the minimal-surface realisation of the "low proposal":
 //! **a single `impl uor_foundation::Hasher`** that uses SHA-256 from
-//! RustCrypto, and which also serves as the hash function for CID
+//! `RustCrypto`, and which also serves as the hash function for CID
 //! multihashes (same bytes, two audiences).
 //!
 //! SHA-384 / SHA-512 are **not implemented** in v0.2.0. The rationale:

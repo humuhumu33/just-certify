@@ -15,11 +15,11 @@
 use sem_ipld::prelude::*;
 use serde_json::json;
 
+type HttpResponse = Result<(Vec<u8>, Vec<(&'static str, String)>), Box<dyn std::error::Error>>;
+
 /// The one function Web2 code needs. Takes any serde-serializable
 /// response body, returns `(body_bytes, http_headers)`.
-fn uor_for_http<T: serde::Serialize>(
-    response: &T,
-) -> Result<(Vec<u8>, Vec<(&'static str, String)>), Box<dyn std::error::Error>> {
+fn uor_for_http<T: serde::Serialize>(response: &T) -> HttpResponse {
     // The canonical bytes are the same ones an IPLD peer or an AI
     // artifact would compute. Identity is shared across ecosystems.
     let (cbor_bytes, data_cid) = dag_cbor_encode(response)?;

@@ -120,7 +120,7 @@ impl SemanticBlock {
 /// Publish a `Grounded<T, Tag>` as the IPLD block pair.
 ///
 /// Data block: canonical DAG-CBOR of `domain_payload` alone.
-/// Cert block: context + UOR metadata + back-link to data_cid.
+/// Cert block: context + UOR metadata + back-link to `data_cid`.
 ///
 /// # Errors
 ///
@@ -317,6 +317,7 @@ impl Publishable for Raw<'_> {
 /// See [`crate::Error`].
 #[cfg(feature = "serde")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+#[allow(clippy::needless_pass_by_value)] // callers pass Raw(_) or &T by value intentionally
 pub fn publish<P: Publishable>(
     context: &SemanticContext,
     payload: P,

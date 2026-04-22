@@ -15,8 +15,8 @@
 
 #![cfg(feature = "publish")]
 
-use sem_ipld::hasher::{sha256, CODEC_DAG_CBOR, CODEC_RAW, MULTIHASH_SHA2_256};
-use sem_ipld::ipld::{cid_from_sha256, dag_cbor_cid};
+use sem_ipld::hasher::{sha256, CODEC_RAW};
+use sem_ipld::ipld::cid_from_sha256;
 use sem_ipld::prelude::*;
 use serde_json::json;
 use uor_foundation::enforcement::ContentFingerprint;

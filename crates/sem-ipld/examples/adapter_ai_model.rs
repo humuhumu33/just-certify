@@ -54,8 +54,8 @@ fn ground_model_artifact(
         &card,
         /* witt_bits       */ 16,
         /* witt_level_bits */ 4,
-        /* unit_address    */ 0x2026_04_22,
-        ContentFingerprint::from_buffer(sha256(weights).into(), 32),
+        /* unit_address    */ 0x2026_0422,
+        ContentFingerprint::from_buffer(sha256(weights), 32),
     )?)
 }
 

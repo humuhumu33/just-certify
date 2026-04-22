@@ -79,11 +79,11 @@ impl Integrity {
     /// ```
     #[must_use]
     pub fn gateway_url(&self, base: &str, cid: &Cid) -> String {
+        use alloc::string::ToString;
         let mut s = String::with_capacity(base.len() + 64);
         s.push_str(base.trim_end_matches('/'));
         s.push_str("/ipfs/");
         // Cid::to_string uses multibase-b32 lowercase — the canonical text form.
-        use alloc::string::ToString;
         s.push_str(&cid.to_string());
         s.push_str("?format=");
         s.push_str(Self::REQUIRED_FORMAT_PARAM);

@@ -88,13 +88,13 @@ pub struct SemanticInput {
 /// Parse a JSON-LD value into a [`SemanticInput`] in **lenient mode**.
 ///
 /// Accepts both:
-/// * a SemIPLD-shaped object (output of [`project_grounded`]), and
+/// * a `SemIPLD`-shaped object (output of [`project_grounded`]), and
 /// * an arbitrary `@context`-bearing JSON-LD document (the framing
 ///   keys are stripped and the remainder becomes the payload).
 ///
-/// If you need to distinguish a native SemIPLD document from a
+/// If you need to distinguish a native `SemIPLD` document from a
 /// pass-through, use [`load_as_jsonld_strict`] — it fails on any
-/// document that does not carry the SemIPLD envelope.
+/// document that does not carry the `SemIPLD` envelope.
 ///
 /// # Errors
 ///
@@ -138,12 +138,12 @@ pub fn load_as_jsonld(value: &Value) -> Result<SemanticInput> {
 /// Classification of a `load()` result.
 #[derive(Debug, Clone)]
 pub enum Loaded {
-    /// The value carries the full SemIPLD envelope (`@context`,
+    /// The value carries the full `SemIPLD` envelope (`@context`,
     /// `u:contextCid`, `u:payload`) — it came from
     /// [`project_grounded`] or a byte-compatible producer.
     SemIpld(SemanticInput),
     /// The value is a valid JSON-LD document with `@context` but no
-    /// SemIPLD framing. The payload is everything minus `@context`,
+    /// `SemIPLD` framing. The payload is everything minus `@context`,
     /// `@type`, and `u:contextCid`.
     PassThrough(SemanticInput),
     /// The value is not a JSON-LD document the loader can handle
@@ -154,7 +154,7 @@ pub enum Loaded {
 /// One load function, three classifications. Replaces the
 /// [`load_as_jsonld`] / [`load_as_jsonld_strict`] split: callers
 /// match on the [`Loaded`] variant and cannot accidentally act on a
-/// pass-through as if it were a native SemIPLD document.
+/// pass-through as if it were a native `SemIPLD` document.
 #[must_use]
 pub fn load(value: &Value) -> Loaded {
     let Value::Object(map) = value else {
@@ -172,7 +172,7 @@ pub fn load(value: &Value) -> Loaded {
 }
 
 /// Strict-mode JSON-LD loader. **Only** accepts documents that carry
-/// the SemIPLD envelope — `@context`, `u:contextCid`, and `u:payload`
+/// the `SemIPLD` envelope — `@context`, `u:contextCid`, and `u:payload`
 /// must all be present. Pass-through JSON-LD is rejected.
 ///
 /// Use this when you need to be sure the input was produced by

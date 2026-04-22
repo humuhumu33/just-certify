@@ -3,7 +3,7 @@
 //! DAG-CBOR encoding, multihash framing) is delegated to the upstream
 //! `cid` and `serde_ipld_dagcbor` crates.
 //!
-//! The adapter's job is narrow: given bytes, produce a CIDv1 over
+//! The adapter's job is narrow: given bytes, produce a `CIDv1` over
 //! dag-cbor + sha2-256. Given a serde-serializable value, produce the
 //! deterministic DAG-CBOR encoding. That's it.
 
@@ -15,7 +15,7 @@ use serde::Serialize;
 
 use crate::hasher::{sha256, CODEC_DAG_CBOR, MULTIHASH_SHA2_256};
 
-/// CIDv1 over a sha2-256 digest with the supplied codec.
+/// `CIDv1` over a sha2-256 digest with the supplied codec.
 ///
 /// # Errors
 ///
@@ -29,7 +29,7 @@ pub fn cid_from_sha256(codec: u64, digest: &[u8; 32]) -> crate::Result<Cid> {
     Ok(Cid::new_v1(codec, mh))
 }
 
-/// CIDv1(dag-cbor, sha2-256) of a byte slice.
+/// `CIDv1`(dag-cbor, sha2-256) of a byte slice.
 ///
 /// # Errors
 ///

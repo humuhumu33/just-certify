@@ -325,7 +325,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn test_cid(seed: u8) -> Cid {
-        use sem_ipld::hasher::{sha256, CODEC_DAG_CBOR, MULTIHASH_SHA2_256};
+        use sem_ipld::hasher::{sha256, CODEC_DAG_CBOR};
         let digest = sha256(&[seed; 32]);
         sem_ipld::ipld::cid_from_sha256(CODEC_DAG_CBOR, &digest).unwrap()
     }

@@ -30,6 +30,11 @@ if [ ! -f "$IPFS_PATH/config" ]; then
     ipfs init --profile=server >/dev/null
 fi
 
+# Disable Kubo's HTTP gateway — we only use the RPC API (port 5001).
+# Without this, Kubo binds port 8080 by default, which collides with
+# $PORT on Railway and causes AddrInUse when the service tries to bind.
+ipfs config Addresses.Gateway ""
+
 # 3. Kubo daemon in the background.
 echo "start: launching Kubo daemon"
 ipfs daemon --routing=dhtclient >/var/log/ipfs.log 2>&1 &

@@ -109,7 +109,10 @@ fn load_as_jsonld_round_trip() {
 
     let loaded = load_as_jsonld(&projected).unwrap();
     assert_eq!(loaded.context_iri, context.iri);
-    assert_eq!(loaded.context_cid.as_deref(), Some(context.cid.to_string().as_str()));
+    assert_eq!(
+        loaded.context_cid.as_deref(),
+        Some(context.cid.to_string().as_str())
+    );
     assert_eq!(loaded.payload, payload);
 }
 

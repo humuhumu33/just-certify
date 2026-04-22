@@ -20,7 +20,7 @@ use serde_json::json;
 fn dag_cbor_value_map_is_key_sorted_regardless_of_insertion_order() {
     // Keys not in lexicographic order: "z" > "a".
     let reversed = json!({ "z": 2, "a": 1 });
-    let forward  = json!({ "a": 1, "z": 2 });
+    let forward = json!({ "a": 1, "z": 2 });
     let (bytes_rev, cid_rev) = dag_cbor_encode(&reversed).unwrap();
     let (bytes_fwd, cid_fwd) = dag_cbor_encode(&forward).unwrap();
     assert_eq!(

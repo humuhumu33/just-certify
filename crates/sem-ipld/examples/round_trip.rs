@@ -26,8 +26,7 @@ const UOR_CONTEXT_BYTES: &[u8] =
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Pin the UOR OWL context to its own CID.
-    let context =
-        SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, UOR_CONTEXT_BYTES)?;
+    let context = SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, UOR_CONTEXT_BYTES)?;
     println!("context IRI : {}", context.iri);
     println!("context CID : {}", context.cid);
 
@@ -72,9 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     assert_eq!(block.data_cid, block2.data_cid);
     assert_ne!(block.certificate_cid, block2.certificate_cid);
-    println!(
-        "\n✓ same payload, different constraints → same data CID, different cert CID"
-    );
+    println!("\n✓ same payload, different constraints → same data CID, different cert CID");
 
     // 5. Reverse the JSON-LD projection.
     let projected = json!({

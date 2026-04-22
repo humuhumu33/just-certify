@@ -17,8 +17,7 @@ use serde::Serialize;
 use serde_json::json;
 use uor_foundation::enforcement::ContentFingerprint;
 
-const UOR_CONTEXT_BYTES: &[u8] =
-    br#"{"@context":{"u":"https://uor.foundation/"}}"#;
+const UOR_CONTEXT_BYTES: &[u8] = br#"{"@context":{"u":"https://uor.foundation/"}}"#;
 
 /// The model card — anything `Serialize`, folded over as DAG-CBOR.
 #[derive(Serialize)]
@@ -37,8 +36,7 @@ fn ground_model_artifact(
     training_tokens: u64,
     evals: serde_json::Value,
 ) -> Result<SemanticBlock, Box<dyn std::error::Error>> {
-    let context =
-        SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, UOR_CONTEXT_BYTES)?;
+    let context = SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, UOR_CONTEXT_BYTES)?;
 
     let card = ModelCard {
         name,

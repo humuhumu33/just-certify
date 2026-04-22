@@ -23,8 +23,7 @@
 use sem_ipld::prelude::*;
 use uor_foundation::enforcement::ContentFingerprint;
 
-const UOR_CONTEXT_BYTES: &[u8] =
-    br#"{"@context":{"u":"https://uor.foundation/"}}"#;
+const UOR_CONTEXT_BYTES: &[u8] = br#"{"@context":{"u":"https://uor.foundation/"}}"#;
 
 /// One helper that works for every unstructured blob: PDFs, images,
 /// audio, model weights, tar archives — anything.
@@ -47,12 +46,13 @@ fn publish_blob(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let ctx =
-        SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, UOR_CONTEXT_BYTES)?;
+    let ctx = SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, UOR_CONTEXT_BYTES)?;
 
     // Four different "data types" — the adapter is the same function.
     let pdf_bytes = b"%PDF-1.7\n<<placeholder PDF body>>".as_slice();
-    let png_bytes = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, /* ... */];
+    let png_bytes = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, /* ... */
+    ];
     let wav_bytes = b"RIFF\0\0\0\0WAVE".as_slice();
     let code_bytes = b"fn main() { println!(\"hello\") }".as_slice();
 
@@ -63,10 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("Rust source  ", code_bytes),
     ] {
         let block = publish_blob(&ctx, bytes)?;
-        println!(
-            "{label} → {}   {}",
-            block.data_cid, block.integrity_attr
-        );
+        println!("{label} → {}   {}", block.data_cid, block.integrity_attr);
     }
 
     println!(

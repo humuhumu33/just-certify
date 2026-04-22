@@ -104,10 +104,7 @@ pub trait VerificationKeyResolver {
     ///
     /// Return [`CryptoError::UnresolvableVerificationMethod`] with a
     /// message describing why resolution failed.
-    fn resolve(
-        &self,
-        verification_method: &str,
-    ) -> Result<VerifyingKey, CryptoError>;
+    fn resolve(&self, verification_method: &str) -> Result<VerifyingKey, CryptoError>;
 }
 
 // ─── errors ─────────────────────────────────────────────────────────────────
@@ -135,9 +132,7 @@ pub enum CryptoError {
     #[error("invalid proof value: {0}")]
     InvalidProofValue(String),
     /// Unsigned variant: the recomputed CID did not match the carried CID.
-    #[error(
-        "proof value does not match canonical form: expected {expected}, got {computed}"
-    )]
+    #[error("proof value does not match canonical form: expected {expected}, got {computed}")]
     ProofMismatch {
         /// The CID carried in `proof.proofValue`.
         expected: Cid,
@@ -202,10 +197,7 @@ fn canonicalize_for_proof(
 /// # Errors
 ///
 /// See [`CryptoError`].
-pub fn sign_unsigned(
-    document: &Value,
-    options: &ProofOptions,
-) -> Result<Value, CryptoError> {
+pub fn sign_unsigned(document: &Value, options: &ProofOptions) -> Result<Value, CryptoError> {
     let (canonical_bytes, mut secured) =
         canonicalize_for_proof(document, CRYPTOSUITE_UNSIGNED, options)?;
     let cid = sem_ipld::ipld::dag_cbor_cid(&canonical_bytes)
@@ -255,15 +247,9 @@ pub fn verify_unsigned(document: &Value) -> Result<(), CryptoError> {
 /// # Errors
 ///
 /// See [`CryptoError`].
-pub fn sign_signed(
-    document: &Value,
-    options: &SignedProofOptions,
-) -> Result<Value, CryptoError> {
-    let (canonical_bytes, mut secured) = canonicalize_for_proof(
-        document,
-        CRYPTOSUITE_SIGNED,
-        &options.common,
-    )?;
+pub fn sign_signed(document: &Value, options: &SignedProofOptions) -> Result<Value, CryptoError> {
+    let (canonical_bytes, mut secured) =
+        canonicalize_for_proof(document, CRYPTOSUITE_SIGNED, &options.common)?;
     let cid = sem_ipld::ipld::dag_cbor_cid(&canonical_bytes)
         .map_err(|e| CryptoError::CanonicalizationFailed(e.to_string()))?;
 
@@ -272,8 +258,7 @@ pub fn sign_signed(
     let signature: Signature = options.signing_key.sign(&mh_bytes);
 
     // proofValue = multibase base58btc of 64-byte signature.
-    let proof_value =
-        multibase::encode(multibase::Base::Base58Btc, signature.to_bytes());
+    let proof_value = multibase::encode(multibase::Base::Base58Btc, signature.to_bytes());
 
     if let Some(Value::Object(pm)) = secured.as_object_mut().and_then(|m| m.get_mut("proof")) {
         pm.insert("proofValue".into(), Value::String(proof_value));
@@ -286,10 +271,7 @@ pub fn sign_signed(
 /// # Errors
 ///
 /// See [`CryptoError`].
-pub fn verify_signed(
-    document: &Value,
-    options: &SignedVerifyOptions,
-) -> Result<(), CryptoError> {
+pub fn verify_signed(document: &Value, options: &SignedVerifyOptions) -> Result<(), CryptoError> {
     let (proof_map, stripped) = extract_proof_and_stripped(document)?;
     expect_cryptosuite(&proof_map, CRYPTOSUITE_SIGNED)?;
 
@@ -364,10 +346,7 @@ pub fn verify(
 
 /// v0.3.0 `sign` — kept as an alias of [`sign_unsigned`] so the
 /// service crate's v0.3.0 code paths keep working without churn.
-pub fn sign(
-    document: &Value,
-    options: &ProofOptions,
-) -> Result<Value, CryptoError> {
+pub fn sign(document: &Value, options: &ProofOptions) -> Result<Value, CryptoError> {
     sign_unsigned(document, options)
 }
 
@@ -394,8 +373,8 @@ pub fn ed25519_public_multikey(key: &VerifyingKey) -> String {
 /// Returns [`CryptoError::InvalidProofValue`] if the input is not a
 /// well-formed Ed25519 Multikey.
 pub fn ed25519_public_from_multikey(s: &str) -> Result<VerifyingKey, CryptoError> {
-    let (_, bytes) = multibase::decode(s)
-        .map_err(|e| CryptoError::InvalidProofValue(e.to_string()))?;
+    let (_, bytes) =
+        multibase::decode(s).map_err(|e| CryptoError::InvalidProofValue(e.to_string()))?;
     if bytes.len() != 34 || bytes[0..2] != ED25519_PUB_MULTICODEC {
         return Err(CryptoError::InvalidProofValue(format!(
             "not an Ed25519 Multikey (len={}, head={:?})",
@@ -405,8 +384,7 @@ pub fn ed25519_public_from_multikey(s: &str) -> Result<VerifyingKey, CryptoError
     }
     let mut arr = [0u8; 32];
     arr.copy_from_slice(&bytes[2..]);
-    VerifyingKey::from_bytes(&arr)
-        .map_err(|e| CryptoError::InvalidProofValue(e.to_string()))
+    VerifyingKey::from_bytes(&arr).map_err(|e| CryptoError::InvalidProofValue(e.to_string()))
 }
 
 // ─── internal helpers ───────────────────────────────────────────────────────
@@ -547,15 +525,14 @@ mod tests {
 
         // proofValue is a multibase Ed25519 signature (64 bytes).
         let pv = signed["proof"]["proofValue"].as_str().unwrap();
-        assert!(pv.starts_with('z'), "expected base58btc multibase, got {pv}");
+        assert!(
+            pv.starts_with('z'),
+            "expected base58btc multibase, got {pv}"
+        );
         let (_, bytes) = multibase::decode(pv).unwrap();
         assert_eq!(bytes.len(), 64);
 
-        verify_signed(
-            &signed,
-            &SignedVerifyOptions { verifying_key: vk },
-        )
-        .unwrap();
+        verify_signed(&signed, &SignedVerifyOptions { verifying_key: vk }).unwrap();
     }
 
     #[test]
@@ -564,11 +541,7 @@ mod tests {
         let vk = sk.verifying_key();
         let mut signed = sign_signed(&sample_doc(), &signed_opts(sk)).unwrap();
         signed["credentialSubject"]["wittBits"] = json!(99);
-        let err = verify_signed(
-            &signed,
-            &SignedVerifyOptions { verifying_key: vk },
-        )
-        .unwrap_err();
+        let err = verify_signed(&signed, &SignedVerifyOptions { verifying_key: vk }).unwrap_err();
         assert!(matches!(err, CryptoError::SignatureInvalid(_)), "{err:?}");
     }
 
@@ -579,7 +552,9 @@ mod tests {
         let signed = sign_signed(&sample_doc(), &signed_opts(sk)).unwrap();
         let err = verify_signed(
             &signed,
-            &SignedVerifyOptions { verifying_key: other_vk },
+            &SignedVerifyOptions {
+                verifying_key: other_vk,
+            },
         )
         .unwrap_err();
         assert!(matches!(err, CryptoError::SignatureInvalid(_)));
@@ -596,11 +571,7 @@ mod tests {
 
         // Produce an unsigned VC; try to verify with the signed verifier.
         let unsigned = sign_unsigned(&sample_doc(), &common_opts()).unwrap();
-        let err = verify_signed(
-            &unsigned,
-            &SignedVerifyOptions { verifying_key: vk },
-        )
-        .unwrap_err();
+        let err = verify_signed(&unsigned, &SignedVerifyOptions { verifying_key: vk }).unwrap_err();
         assert!(matches!(err, CryptoError::WrongCryptosuite(_)));
     }
 
@@ -623,10 +594,16 @@ mod tests {
 
         let (a, _) = canonicalize_for_proof(&doc, CRYPTOSUITE_UNSIGNED, &opts).unwrap();
         let (b, _) = canonicalize_for_proof(&doc, CRYPTOSUITE_UNSIGNED, &opts).unwrap();
-        assert_eq!(a, b, "same inputs must produce byte-identical canonical bytes");
+        assert_eq!(
+            a, b,
+            "same inputs must produce byte-identical canonical bytes"
+        );
 
         let (c, _) = canonicalize_for_proof(&doc, CRYPTOSUITE_SIGNED, &opts).unwrap();
-        assert_ne!(a, c, "different cryptosuite names must produce different canonical bytes");
+        assert_ne!(
+            a, c,
+            "different cryptosuite names must produce different canonical bytes"
+        );
         // And swapping back yields the original.
         let (d, _) = canonicalize_for_proof(&doc, CRYPTOSUITE_UNSIGNED, &opts).unwrap();
         assert_eq!(a, d);

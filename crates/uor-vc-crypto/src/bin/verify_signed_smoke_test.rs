@@ -11,9 +11,7 @@
 
 use std::process::ExitCode;
 
-use uor_vc_crypto::{
-    ed25519_public_from_multikey, verify, CryptoError, VerificationKeyResolver,
-};
+use uor_vc_crypto::{ed25519_public_from_multikey, verify, CryptoError, VerificationKeyResolver};
 
 struct HealthEndpointResolver {
     service_url: String,
@@ -26,9 +24,7 @@ impl VerificationKeyResolver for HealthEndpointResolver {
     ) -> Result<ed25519_dalek::VerifyingKey, CryptoError> {
         let url = format!("{}/v1/health", self.service_url);
         let body: serde_json::Value = ureq_like_get(&url).map_err(|e| {
-            CryptoError::UnresolvableVerificationMethod(format!(
-                "health fetch failed: {e}"
-            ))
+            CryptoError::UnresolvableVerificationMethod(format!("health fetch failed: {e}"))
         })?;
         let mk = body
             .get("signing")
@@ -36,8 +32,7 @@ impl VerificationKeyResolver for HealthEndpointResolver {
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
                 CryptoError::UnresolvableVerificationMethod(
-                    "health response missing signing.public_key_multibase"
-                        .into(),
+                    "health response missing signing.public_key_multibase".into(),
                 )
             })?;
         ed25519_public_from_multikey(mk)
@@ -58,8 +53,7 @@ fn ureq_like_get(url: &str) -> Result<serde_json::Value, String> {
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("JSON parse: {e}"))
+    serde_json::from_slice(&output.stdout).map_err(|e| format!("JSON parse: {e}"))
 }
 
 fn main() -> ExitCode {
@@ -70,8 +64,8 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let service_url = std::env::var("SEM_IPLD_SERVICE_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:8787".into());
+    let service_url =
+        std::env::var("SEM_IPLD_SERVICE_URL").unwrap_or_else(|_| "http://127.0.0.1:8787".into());
 
     let vc: serde_json::Value = match serde_json::from_str(&vc_arg) {
         Ok(v) => v,

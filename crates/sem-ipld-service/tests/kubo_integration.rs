@@ -15,9 +15,7 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use sem_ipld_service::{
-    router, BlockStore, CachedStore, KuboStore, ServiceState, StoreError,
-};
+use sem_ipld_service::{router, BlockStore, CachedStore, KuboStore, ServiceState, StoreError};
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -58,7 +56,9 @@ async fn put_then_restart_then_get_still_works() {
         .unwrap();
     let resp = app1.oneshot(post).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     let data_cid = body["data_cid"].as_str().unwrap().to_string();
 
@@ -80,7 +80,12 @@ async fn put_then_restart_then_get_still_works() {
         "durability FAILED — CID produced by the first instance was not \
          retrievable through a second instance. This is the whole point of v0.2.0."
     );
-    let cache = resp.headers().get("cache-control").unwrap().to_str().unwrap();
+    let cache = resp
+        .headers()
+        .get("cache-control")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(cache.contains("immutable"));
 }
 
@@ -166,7 +171,9 @@ async fn cid_mismatch_is_a_hard_500() {
         .unwrap();
     let resp = app.oneshot(post).await.unwrap();
     assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let v: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["error"], "integrity invariant violated");
 }

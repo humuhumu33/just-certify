@@ -113,7 +113,11 @@ fn cert_block_has_eight_fields() {
     };
     // context, contextIri, data, fingerprint, foundationVersion,
     // unitAddress, wittBits, wittLevelBits = 8.
-    assert_eq!(m.len(), 8, "cert block field count changed — review wire format");
+    assert_eq!(
+        m.len(),
+        8,
+        "cert block field count changed — review wire format"
+    );
     assert!(m.contains_key("foundationVersion"));
     match m.get("foundationVersion") {
         Some(Ipld::String(s)) => assert!(!s.is_empty()),

@@ -132,11 +132,8 @@ fn load_classifies_not_json_ld() {
 /// foundation dep.
 #[test]
 fn required_uor_foundation_version_matches_cargo_toml() {
-    let manifest = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/Cargo.toml"
-    ))
-    .expect("read Cargo.toml");
+    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
+        .expect("read Cargo.toml");
 
     // Find the version pinned on `uor-foundation = { version = "x.y.z", ...`
     let Some(line) = manifest
@@ -151,7 +148,8 @@ fn required_uor_foundation_version_matches_cargo_toml() {
         .nth(1)
         .expect("uor-foundation version quoted string");
     assert_eq!(
-        sem_ipld::REQUIRED_UOR_FOUNDATION_VERSION, version,
+        sem_ipld::REQUIRED_UOR_FOUNDATION_VERSION,
+        version,
         "REQUIRED_UOR_FOUNDATION_VERSION const drifted from Cargo.toml dep"
     );
 }

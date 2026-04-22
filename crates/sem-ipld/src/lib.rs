@@ -128,15 +128,13 @@ pub mod prelude {
     #[cfg(feature = "serde")]
     #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
     pub use crate::jsonld::{
-        load, load_as_jsonld, load_as_jsonld_strict, project_grounded, Loaded,
-        SemanticInput,
+        load, load_as_jsonld, load_as_jsonld_strict, project_grounded, Loaded, SemanticInput,
     };
 
     #[cfg(feature = "serde")]
     #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
     pub use crate::publish::{
-        publish, publish_parts, publish_raw, publish_semantic, Publishable, Raw,
-        SemanticBlock,
+        publish, publish_parts, publish_raw, publish_semantic, Publishable, Raw, SemanticBlock,
     };
 
     // Foundation anchors.

@@ -39,10 +39,9 @@ impl Config {
             "kubo" => StoreKind::Kubo,
             "memory" => StoreKind::Memory,
             other => {
-                return Err(format!(
-                    "SEM_IPLD_STORE must be `kubo` or `memory`, got `{other}`"
+                return Err(
+                    format!("SEM_IPLD_STORE must be `kubo` or `memory`, got `{other}`").into(),
                 )
-                .into())
             }
         };
         let ipfs_api_url = std::env::var("SEM_IPLD_IPFS_API_URL")
@@ -53,10 +52,9 @@ impl Config {
         let lru_capacity: usize = std::env::var("SEM_IPLD_LRU_CAPACITY")
             .unwrap_or_else(|_| "10000".into())
             .parse()?;
-        let lru_capacity = NonZeroUsize::new(lru_capacity)
-            .ok_or("SEM_IPLD_LRU_CAPACITY must be > 0")?;
-        let bind = std::env::var("SEM_IPLD_BIND")
-            .unwrap_or_else(|_| "127.0.0.1:8787".into());
+        let lru_capacity =
+            NonZeroUsize::new(lru_capacity).ok_or("SEM_IPLD_LRU_CAPACITY must be > 0")?;
+        let bind = std::env::var("SEM_IPLD_BIND").unwrap_or_else(|_| "127.0.0.1:8787".into());
         let bind_addr: std::net::SocketAddr = bind.parse()?;
         let public_base_url = std::env::var("PUBLIC_BASE_URL").ok();
 

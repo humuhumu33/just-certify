@@ -32,9 +32,7 @@ use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use sem_ipld::prelude::*;
-use uor_foundation::enforcement::{
-    CompileUnitBuilder, ConstrainedTypeInput, Term,
-};
+use uor_foundation::enforcement::{CompileUnitBuilder, ConstrainedTypeInput, Term};
 use uor_foundation::enums::{VerificationDomain, WittLevel};
 use uor_foundation::pipeline;
 
@@ -284,7 +282,8 @@ fn walk_reject_bignums(v: &serde_json::Value) -> Result<(), ApiError> {
                     detail: "DAG-CBOR integers must fit in i64 or u64; \
                              arbitrary-precision bignums (CBOR tag 2) are \
                              not supported in this version. Encode large \
-                             values as byte strings instead.".into(),
+                             values as byte strings instead."
+                        .into(),
                 });
             }
             Ok(())
@@ -373,8 +372,8 @@ async fn certify_handler(
                 body.len()
             )));
         }
-        let payload: serde_json::Value = serde_json::from_slice(&body)
-            .map_err(|e| ApiError::BadRequest {
+        let payload: serde_json::Value =
+            serde_json::from_slice(&body).map_err(|e| ApiError::BadRequest {
                 error: "malformed JSON",
                 detail: e.to_string(),
             })?;
@@ -383,20 +382,19 @@ async fn certify_handler(
             .map_err(|e| ApiError::Internal(format!("publish_semantic: {e}")))?
     } else if content_type.starts_with("application/vnd.ipld.dag-cbor") {
         use ipld_core::ipld::Ipld;
-        let decoded: Ipld = serde_ipld_dagcbor::from_slice(&body).map_err(|e| {
-            ApiError::BadRequest {
+        let decoded: Ipld =
+            serde_ipld_dagcbor::from_slice(&body).map_err(|e| ApiError::BadRequest {
                 error: "malformed DAG-CBOR",
                 detail: e.to_string(),
-            }
-        })?;
-        let reencoded = serde_ipld_dagcbor::to_vec(&decoded).map_err(|e| {
-            ApiError::Internal(format!("dag-cbor re-encode: {e}"))
-        })?;
+            })?;
+        let reencoded = serde_ipld_dagcbor::to_vec(&decoded)
+            .map_err(|e| ApiError::Internal(format!("dag-cbor re-encode: {e}")))?;
         if reencoded.as_slice() != body.as_ref() {
             return Err(ApiError::BadRequest {
                 error: "non-canonical DAG-CBOR",
                 detail: "input bytes do not match the canonical DAG-CBOR \
-                         encoding of their decoded value".into(),
+                         encoding of their decoded value"
+                    .into(),
             });
         }
         sem_ipld::publish::publish_parts(
@@ -416,10 +414,7 @@ async fn certify_handler(
             );
         }
         use uor_foundation::enforcement::ContentFingerprint;
-        let fp = ContentFingerprint::from_buffer(
-            sem_ipld::hasher::sha256(&body),
-            32,
-        );
+        let fp = ContentFingerprint::from_buffer(sem_ipld::hasher::sha256(&body), 32);
         sem_ipld::publish::publish_raw(
             &state.context,
             &body,
@@ -481,10 +476,8 @@ async fn certify_handler(
         header::CACHE_CONTROL,
         CACHE_CONTROL_CERTIFY.parse().unwrap(),
     );
-    resp.headers_mut().insert(
-        header::ETAG,
-        format!("\"{cert_cid_str}\"").parse().unwrap(),
-    );
+    resp.headers_mut()
+        .insert(header::ETAG, format!("\"{cert_cid_str}\"").parse().unwrap());
     // v0.4.0 T5: loud-but-permissive signal to callers that sent an
     // unknown (or absent) Content-Type and therefore got the raw-bytes
     // codec path by default.
@@ -548,9 +541,7 @@ async fn block_handler(
         Some(other) => {
             return Err(ApiError::BadRequest {
                 error: "unsupported projection",
-                detail: format!(
-                    "?as=`{other}` is not supported; use raw, jsonld, or vc"
-                ),
+                detail: format!("?as=`{other}` is not supported; use raw, jsonld, or vc"),
             });
         }
     };
@@ -562,33 +553,29 @@ async fn block_handler(
                 header::CONTENT_TYPE,
                 "application/vnd.ipld.raw".parse().unwrap(),
             );
-            resp.headers_mut().insert(
-                header::CACHE_CONTROL,
-                CACHE_CONTROL_BLOCK.parse().unwrap(),
-            );
+            resp.headers_mut()
+                .insert(header::CACHE_CONTROL, CACHE_CONTROL_BLOCK.parse().unwrap());
             resp.headers_mut()
                 .insert(header::ETAG, format!("\"{cid_str}\"").parse().unwrap());
             Ok(resp)
         }
         Projection::JsonLd => {
-            let cert = projection::assert_cert_block(&bytes)
-                .map_err(|_| ApiError::NotAcceptable(
+            let cert = projection::assert_cert_block(&bytes).map_err(|_| {
+                ApiError::NotAcceptable(
                     "JSON-LD projection is only available for UOR certificate blocks",
-                ))?;
+                )
+            })?;
             let v = projection::certificate_block_as_jsonld(&cert, &cid);
             typed_json_response(v, "application/ld+json", &cid_str)
         }
         Projection::Vc => {
-            let cert = projection::assert_cert_block(&bytes)
-                .map_err(|_| ApiError::NotAcceptable(
+            let cert = projection::assert_cert_block(&bytes).map_err(|_| {
+                ApiError::NotAcceptable(
                     "VC 2.0 projection is only available for UOR certificate blocks",
-                ))?;
-            let vc = projection::certificate_block_as_vc(
-                &cert,
-                &cid,
-                state.signing.as_ref(),
-            )
-            .map_err(|e| ApiError::Internal(format!("vc sign: {e}")))?;
+                )
+            })?;
+            let vc = projection::certificate_block_as_vc(&cert, &cid, state.signing.as_ref())
+                .map_err(|e| ApiError::Internal(format!("vc sign: {e}")))?;
             typed_json_response(vc, "application/vc+ld+json", &cid_str)
         }
     }
@@ -608,10 +595,8 @@ fn typed_json_response(
     let mut resp = Response::new(axum::body::Body::from(body));
     resp.headers_mut()
         .insert(header::CONTENT_TYPE, content_type.parse().unwrap());
-    resp.headers_mut().insert(
-        header::CACHE_CONTROL,
-        CACHE_CONTROL_BLOCK.parse().unwrap(),
-    );
+    resp.headers_mut()
+        .insert(header::CACHE_CONTROL, CACHE_CONTROL_BLOCK.parse().unwrap());
     resp.headers_mut()
         .insert(header::ETAG, format!("\"{cid_str}\"").parse().unwrap());
     Ok(resp)
@@ -660,10 +645,8 @@ async fn health_handler(State(state): State<ServiceState>) -> Response {
 async fn openapi_handler() -> Response {
     let spec = include_str!("../../../openapi.yaml");
     let mut resp = Response::new(axum::body::Body::from(spec));
-    resp.headers_mut().insert(
-        header::CONTENT_TYPE,
-        "application/yaml".parse().unwrap(),
-    );
+    resp.headers_mut()
+        .insert(header::CONTENT_TYPE, "application/yaml".parse().unwrap());
     resp
 }
 

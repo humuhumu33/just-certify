@@ -163,8 +163,7 @@ pub fn load(value: &Value) -> Loaded {
     if !map.contains_key("@context") {
         return Loaded::NotJsonLd;
     }
-    let is_sem_ipld =
-        map.contains_key("u:contextCid") && map.contains_key("u:payload");
+    let is_sem_ipld = map.contains_key("u:contextCid") && map.contains_key("u:payload");
     match load_as_jsonld(value) {
         Ok(input) if is_sem_ipld => Loaded::SemIpld(input),
         Ok(input) => Loaded::PassThrough(input),

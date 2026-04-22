@@ -23,7 +23,16 @@ const SERVICE: &str = "http://127.0.0.1:8787";
 fn http_post(path: &str, content_type: &str, body: &[u8]) -> Value {
     let url = format!("{SERVICE}{path}");
     let out = std::process::Command::new("curl")
-        .args(["-sS", "-X", "POST", "-H", &format!("Content-Type: {content_type}"), "--data-binary", "@-", &url])
+        .args([
+            "-sS",
+            "-X",
+            "POST",
+            "-H",
+            &format!("Content-Type: {content_type}"),
+            "--data-binary",
+            "@-",
+            &url,
+        ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
@@ -64,8 +73,7 @@ fn opaque_bytes_cert_produces_verifiable_vc() {
     let vc = http_get(&format!("{SERVICE}/v1/blocks/{cert_cid}?as=vc"));
 
     // 3. Verify via the cryptosuite (unsigned path — no key resolver needed).
-    let _ = uor_vc_crypto::verify(&vc, None)
-        .expect("VC from opaque-bytes cert must verify");
+    let _ = uor_vc_crypto::verify(&vc, None).expect("VC from opaque-bytes cert must verify");
 
     // 4. credentialSubject.id is ipfs://<data_cid> using the raw codec.
     let subject_id = vc["credentialSubject"]["id"].as_str().unwrap();

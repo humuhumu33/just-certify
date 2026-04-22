@@ -178,9 +178,7 @@ impl BlockStore for KuboStore {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            return Err(StoreError::Backend(format!(
-                "block/put {status}: {body}"
-            )));
+            return Err(StoreError::Backend(format!("block/put {status}: {body}")));
         }
 
         #[derive(serde::Deserialize)]
@@ -208,11 +206,7 @@ impl BlockStore for KuboStore {
     }
 
     async fn get(&self, cid: &Cid) -> Result<Option<Vec<u8>>, StoreError> {
-        let url = format!(
-            "{}/api/v0/block/get?arg={}&offline=true",
-            self.api_url,
-            cid
-        );
+        let url = format!("{}/api/v0/block/get?arg={}&offline=true", self.api_url, cid);
         let resp = self
             .client
             .post(&url)

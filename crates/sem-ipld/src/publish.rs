@@ -49,8 +49,8 @@
 
 extern crate alloc;
 use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 
 use cid::Cid;
 use serde::Serialize;

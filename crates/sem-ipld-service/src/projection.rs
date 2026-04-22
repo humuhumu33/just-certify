@@ -15,8 +15,8 @@ use cid::Cid;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uor_vc_crypto::{
-    sign_signed as vc_sign_signed, sign_unsigned as vc_sign_unsigned,
-    CommonOptions, SignedProofOptions,
+    sign_signed as vc_sign_signed, sign_unsigned as vc_sign_unsigned, CommonOptions,
+    SignedProofOptions,
 };
 
 use crate::multibase_util::encode_base58btc;
@@ -206,18 +206,15 @@ mod tests {
     use uor_vc_crypto::{verify as vc_verify, CRYPTOSUITE_NAME};
 
     fn sample_view() -> (CertBlockView, Cid) {
-        let data_cid: Cid =
-            "bafyreihltcnuuyqp2jm24aqydpnlj7b6w3ogwrplomrjtg5rifv44mmjey"
-                .parse()
-                .unwrap();
-        let ctx_cid: Cid =
-            "bafyreig2u5g3vjapucxortrdoouufsrk7nbbcu5p7elfmcfdxhhc6k3qzy"
-                .parse()
-                .unwrap();
-        let cert_cid: Cid =
-            "bafyreicti7eyzvx6lnabyfcwccm3talwgp4ogh4gqowpugtwd7so4gc2pi"
-                .parse()
-                .unwrap();
+        let data_cid: Cid = "bafyreihltcnuuyqp2jm24aqydpnlj7b6w3ogwrplomrjtg5rifv44mmjey"
+            .parse()
+            .unwrap();
+        let ctx_cid: Cid = "bafyreig2u5g3vjapucxortrdoouufsrk7nbbcu5p7elfmcfdxhhc6k3qzy"
+            .parse()
+            .unwrap();
+        let cert_cid: Cid = "bafyreicti7eyzvx6lnabyfcwccm3talwgp4ogh4gqowpugtwd7so4gc2pi"
+            .parse()
+            .unwrap();
         let view = CertBlockView {
             context: ctx_cid,
             context_iri: "https://uor.foundation/".into(),

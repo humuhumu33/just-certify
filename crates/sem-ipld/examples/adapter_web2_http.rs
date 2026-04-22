@@ -26,7 +26,15 @@ fn uor_for_http<T: serde::Serialize>(
     let integrity = sha256_integrity_attribute(&cbor_bytes);
 
     let headers = vec![
-        ("X-UOR-Fingerprint", data_cid.hash().digest().iter().map(|b| format!("{b:02x}")).collect::<String>()),
+        (
+            "X-UOR-Fingerprint",
+            data_cid
+                .hash()
+                .digest()
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>(),
+        ),
         ("X-UOR-Data-CID", data_cid.to_string()),
         ("Integrity", integrity),
     ];

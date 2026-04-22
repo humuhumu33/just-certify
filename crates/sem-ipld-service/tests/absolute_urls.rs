@@ -27,7 +27,9 @@ async fn call_certify(state: ServiceState, extra_headers: &[(&str, &str)]) -> Va
     let req = req_builder.body(Body::from(r#"{"v":1}"#)).unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -35,7 +37,10 @@ async fn call_certify(state: ServiceState, extra_headers: &[(&str, &str)]) -> Va
 async fn urls_use_host_header_when_no_proxy() {
     let body = call_certify(fresh_state(), &[("host", "sem.example:9000")]).await;
     let data_url = body["urls"]["data"].as_str().unwrap();
-    assert!(data_url.starts_with("http://sem.example:9000/v1/blocks/"), "got {data_url}");
+    assert!(
+        data_url.starts_with("http://sem.example:9000/v1/blocks/"),
+        "got {data_url}"
+    );
 }
 
 #[tokio::test]
@@ -50,7 +55,10 @@ async fn urls_respect_x_forwarded_headers() {
     )
     .await;
     let data_url = body["urls"]["data"].as_str().unwrap();
-    assert!(data_url.starts_with("https://api.uor.foundation/v1/blocks/"), "got {data_url}");
+    assert!(
+        data_url.starts_with("https://api.uor.foundation/v1/blocks/"),
+        "got {data_url}"
+    );
     assert!(!data_url.contains("origin.internal"));
 }
 
@@ -68,7 +76,10 @@ async fn public_base_url_override_wins() {
     )
     .await;
     let data_url = body["urls"]["data"].as_str().unwrap();
-    assert!(data_url.starts_with("https://cdn.example.com/v1/blocks/"), "got {data_url}");
+    assert!(
+        data_url.starts_with("https://cdn.example.com/v1/blocks/"),
+        "got {data_url}"
+    );
     assert!(!data_url.contains("evil.example"));
     assert!(!data_url.contains("origin.internal"));
 }
@@ -98,7 +109,9 @@ async fn block_get_carries_immutable_cache_header() {
         .unwrap();
     let post_resp = app.clone().oneshot(post).await.unwrap();
     assert_eq!(post_resp.status(), StatusCode::CREATED);
-    let post_bytes = axum::body::to_bytes(post_resp.into_body(), 1 << 20).await.unwrap();
+    let post_bytes = axum::body::to_bytes(post_resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let post_body: Value = serde_json::from_slice(&post_bytes).unwrap();
     let data_cid = post_body["data_cid"].as_str().unwrap();
 
@@ -115,8 +128,10 @@ async fn block_get_carries_immutable_cache_header() {
         .unwrap()
         .to_str()
         .unwrap();
-    assert_eq!(cache, "public, max-age=31536000, immutable",
-        "v0.2.0 must restore the immutable directive on block-GET");
+    assert_eq!(
+        cache, "public, max-age=31536000, immutable",
+        "v0.2.0 must restore the immutable directive on block-GET"
+    );
 }
 
 /// v0.2.0: certify-POST cache header stays at max-age=300 must-revalidate.
@@ -132,7 +147,12 @@ async fn certify_post_cache_header_is_not_immutable() {
         .body(Body::from(r#"{"v":7}"#))
         .unwrap();
     let resp = app.oneshot(post).await.unwrap();
-    let cache = resp.headers().get("cache-control").unwrap().to_str().unwrap();
+    let cache = resp
+        .headers()
+        .get("cache-control")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert_eq!(cache, "public, max-age=300, must-revalidate");
     assert!(!cache.contains("immutable"));
 }

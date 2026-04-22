@@ -95,7 +95,10 @@ fn web2_bytes_equal_web3_data_bytes() {
     let web3 = publish_parts(
         &ctx(),
         &payload,
-        7, 3, 0, ContentFingerprint::from_buffer([0u8; 32], 32),
+        7,
+        3,
+        0,
+        ContentFingerprint::from_buffer([0u8; 32], 32),
     )
     .unwrap();
 
@@ -120,7 +123,10 @@ fn opaque_bytes_cid_is_shared_across_transports() {
     let block = publish_raw(
         &ctx(),
         pdf,
-        1, 1, 0, ContentFingerprint::from_buffer(sha256(pdf), 32),
+        1,
+        1,
+        0,
+        ContentFingerprint::from_buffer(sha256(pdf), 32),
     )
     .unwrap();
 
@@ -141,7 +147,10 @@ fn data_cid_and_cert_cid_are_distinct() {
     let block = publish_parts(
         &ctx(),
         &payload,
-        1, 1, 0, ContentFingerprint::from_buffer([0u8; 32], 32),
+        1,
+        1,
+        0,
+        ContentFingerprint::from_buffer([0u8; 32], 32),
     )
     .unwrap();
     assert_ne!(block.data_cid, block.certificate_cid);
@@ -165,7 +174,10 @@ fn integrity_attr_is_cbor_scoped_not_json_scoped() {
     let block = publish_parts(
         &ctx(),
         &payload,
-        1, 1, 0, ContentFingerprint::from_buffer([0u8; 32], 32),
+        1,
+        1,
+        0,
+        ContentFingerprint::from_buffer([0u8; 32], 32),
     )
     .unwrap();
 

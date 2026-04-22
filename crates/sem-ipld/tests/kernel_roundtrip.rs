@@ -70,9 +70,8 @@ fn pipeline_run_then_publish_then_verify_cert_fields() {
     let kernel_fingerprint = grounded.content_fingerprint();
 
     // ─── 4. Publish through sem-ipld. ──────────────────────────────────────
-    let context =
-        SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, CONTEXT_BYTES)
-            .expect("context bytes hash to a CID");
+    let context = SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, CONTEXT_BYTES)
+        .expect("context bytes hash to a CID");
     let payload = json!({ "@type": "u:KernelRoundTrip", "v": 1 });
 
     let block = publish_semantic(&grounded, &context, payload)
@@ -89,7 +88,11 @@ fn pipeline_run_then_publish_then_verify_cert_fields() {
     // wittBits — from the kernel's GroundingCertificate.
     match m.get("wittBits") {
         Some(Ipld::Integer(n)) => {
-            assert_eq!(*n, i128::from(kernel_witt_bits), "wittBits drifted from kernel");
+            assert_eq!(
+                *n,
+                i128::from(kernel_witt_bits),
+                "wittBits drifted from kernel"
+            );
         }
         other => panic!("wittBits field missing or wrong shape: {other:?}"),
     }
@@ -165,8 +168,7 @@ fn publish_via_trait_accepts_pipeline_grounded() {
         pipeline::run::<ConstrainedTypeInput, _, SriHasher256>(validated).unwrap();
 
     let context =
-        SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, CONTEXT_BYTES)
-            .unwrap();
+        SemanticContext::with_bytes(SemanticContext::CANONICAL_IRI, CONTEXT_BYTES).unwrap();
 
     // Use publish_semantic (the Grounded-aware adapter) — this is the
     // ONLY fully-kernel-rooted publish path. `publish` / `publish_parts`

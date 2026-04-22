@@ -77,6 +77,16 @@ Response (valid JSON-LD 1.1):
 
 `@id` is permanent. `certificate` is permanent. Both are retrievable from any public IPFS gateway — this service is not in the critical path for verification.
 
+**Verifying `integrity` externally:** The `integrity` field is `sha256-<base64>` over the **raw binary CBOR block bytes** returned by `GET /v1/blocks/<cid>` — not the JSON input and not decoded text. To verify:
+```bash
+curl -s https://api.uor.foundation/v1/blocks/<cid> | openssl dgst -sha256 -binary | base64
+```
+The result must match the base64 portion of `integrity`. Our conformance test `integrity_matches_sha256_of_raw_get_block_bytes` verifies this end-to-end.
+
+**Two identity fields, two distinct roles:**
+- `uor_address` in the response: content-derived per-object handle (first 16 bytes of the CBOR block SHA-256).
+- `uor:unitAddress` in the certificate block (`?as=jsonld`): the UOR kernel's type-class admission identifier, constant for all objects admitted through the same `ConstrainedTypeInput` schema.
+
 ---
 
 ## API
